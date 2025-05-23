@@ -28,7 +28,7 @@ export function Appbar({name}:AppbarProps) : JSX.Element{
                     <Icons.Create/>
                    
                 </button>
-                <span className="flex items-center"><Avatar name={name} size={38}/></span>
+                <span className="flex items-center" onClick={()=>{navigate('/profile')}}><Avatar name={name} size={38}/></span>
             </div>
 
 

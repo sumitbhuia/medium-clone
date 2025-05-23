@@ -16,6 +16,8 @@ export const Signup = () => {
     const [error, setError] = useState("");
     const navigate = useNavigate();
 
+    const BASE_URL = import.meta.env.VITE_BASE_URL;
+
     return (
         <form>
         {/* Whole screen */}
@@ -43,7 +45,7 @@ export const Signup = () => {
                      try{
 
                         //Sending request to backend
-                        const response  =  await axios.post("https://backend.sumitbhuia.workers.dev/api/v1/users/signup",
+                        const response  =  await axios.post(`${BASE_URL}/api/v1/users/signup`,
                             {
                                 username : name,
                                 email : email,

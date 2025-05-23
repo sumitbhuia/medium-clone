@@ -14,9 +14,11 @@ export const Signin = () => {
     const [error, setError] = useState("");
     const navigate = useNavigate();
 
+    const BASE_URL = import.meta.env.VITE_BASE_URL;
+
     const handleSignIn = async () => {
         try {
-            const response = await axios.post("https://backend.sumitbhuia.workers.dev/api/v1/users/signin", {
+            const response = await axios.post(`${BASE_URL}/api/v1/users/signin`, {
                 email: email,
                 password: password
             });

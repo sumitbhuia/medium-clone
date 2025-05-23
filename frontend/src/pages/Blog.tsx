@@ -27,7 +27,7 @@ export function Blog(): JSX.Element {
     const token = localStorage.getItem("token");
     const navigate = useNavigate();
    
-
+    const BASE_URL = import.meta.env.VITE_BASE_URL;
 
     useEffect(() => {
 
@@ -39,7 +39,7 @@ export function Blog(): JSX.Element {
         const getBlog = async () => {
             try {
                 setIsLoading(true);
-                const res = await axios.get(`https://backend.sumitbhuia.workers.dev/api/v1/blog/${id}`, {
+                const res = await axios.get(`${BASE_URL}/api/v1/blog/${id}`, {
                     headers: {
                         Authorization: `Bearer ${localStorage.getItem("token")}`
                     }

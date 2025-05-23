@@ -17,8 +17,8 @@ export function Publish():JSX.Element {
     const navigate = useNavigate();
 
     const token = localStorage.getItem("token");
+    const BASE_URL = import.meta.env.VITE_BASE_URL;
 
-   
     if(!token){
         navigate("/signin");
     }
@@ -33,7 +33,7 @@ export function Publish():JSX.Element {
           async function sendData() 
             {
                 try {
-                        const response = await axios.post("https://backend.sumitbhuia.workers.dev/api/v1/blog/create",{
+                        const response = await axios.post(`${BASE_URL}/api/v1/blog/create`,{
                             title,
                             description : html,
                             // userId, // optional because we are getting userId from the token in backend

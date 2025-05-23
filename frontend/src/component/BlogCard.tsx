@@ -4,7 +4,16 @@ import  parser  from "html-react-parser";
 
 
 export function BlogCard({post}: any): JSX.Element {
-  const time: number = Math.ceil((post.description).length /100);
+
+  const wordCount = post.description
+  .replace(/<[^>]+>/g, '') // Strip HTML tags
+  .replace(/\[[0-9]+\]/g, '') // Remove citations
+  .replace(/https?:\/\/[^\s]+/g, '') // Remove URLs
+  .replace(/\s+/g, ' ') // Normalize spaces
+  .trim()
+  .split(/\s+/).length; // Count words
+  
+const time = Math.ceil(wordCount / 225); // 225 wpm
 
  const url: string = "https://random.imagecdn.app/150/150";
 

@@ -25,7 +25,7 @@ export const Blogs = () => {
     const token = localStorage.getItem("token");
     const navigate = useNavigate();
    
-
+    const BASE_URL = import.meta.env.VITE_BASE_URL;
 
    useEffect(()=>{
 
@@ -35,7 +35,7 @@ export const Blogs = () => {
 
     const getPosts = async () =>{
         try{
-            const response = await axios.get("https://backend.sumitbhuia.workers.dev/api/v1/blog/allPosts");
+            const response = await axios.get(`${BASE_URL}/api/v1/blog/allPosts`);
             setPosts(response.data);
         }
     
@@ -78,7 +78,11 @@ return <div className="flex flex-col min-h-screen bg-white">
     <Appbar name={name}/>
     <div className="flex-grow p-4 sm:p-6 md:p-8 max-w-4xl mx-auto w-full">
         <div >
-            {posts.map(it => <BlogCard  key={it.id} post={it} />)}
+            {/* Reverse the posts using slice() and reverse()
+                slice() is used to create a new copy of the array and 
+                reverse() is used to reverse the array
+            */}
+            {posts.slice().reverse().map(it => <BlogCard  key={it.id} post={it} />)}
         </div>
     </div>
 </div>;
