@@ -7,4 +7,4 @@ postRouter.get('/allPosts', getAllPosts);
 
 postRouter.post('/create',authMiddleware, createPost); 
 postRouter.get('/:id',authMiddleware, getPostById); 
-postRouter.put('/update',authMiddleware, updatePostById); 
+postRouter.put('/edit/:id',authMiddleware, updatePostById); 

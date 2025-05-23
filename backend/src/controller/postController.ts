@@ -107,16 +107,14 @@ export async function updatePostById(c:Context) {
     const prisma = getPrisma(c.env.DATABASE_URL);
 
     try {
-        // const pid:number  = Number(c.req.param('id'));
-
-
+        const id = Number(c.req.param('id'));
         const body = await c.req.json();
-        const parsedPost = updatePostInputSchema.safeParse(body);
+        const parsedPost = updatePostInputSchema.safeParse({ ...body , id });
         if(!parsedPost.success){
             return c.json({error : 'Invalid post input'},StatusCodes.BAD_REQUEST);
         }
 
-        const { title, description , id } = parsedPost.data;
+        const { title, description } = parsedPost.data;
       
 
         const post = await prisma.post.findUnique({
