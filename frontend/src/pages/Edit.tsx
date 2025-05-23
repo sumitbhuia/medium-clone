@@ -22,7 +22,7 @@ export function Edit(): JSX.Element {
     const [blog, setBlog] = useState<BlogProp>();
     const [isLoading, setIsLoading] = useState(true);
     const [title, setTitle] = useState("");
-    const [description, setDescription] = useState("");
+    const [ _ , setDescription] = useState("");
     const [editor, setEditor] = useState<Editor | null>(null);
 
     const { id } = useParams<{ id: string }>();

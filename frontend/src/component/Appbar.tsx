@@ -1,8 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import Avatar from "./Avatar";
-import * as Icons from '../Icons'
 import medium from '../../public/medium.png'
-import React from "react";
 
 interface AppbarProps {
     name: string;
