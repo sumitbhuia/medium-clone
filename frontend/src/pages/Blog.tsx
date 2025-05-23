@@ -27,7 +27,7 @@ export function Blog(): JSX.Element {
     const token = localStorage.getItem("token");
     const navigate = useNavigate();
 
-    const BASE_URL = import.meta.env.VITE_BASE_URL;
+    const BASE_URL =  "https://backend.sumitbhuia.workers.dev";
 
     useEffect(() => {
 

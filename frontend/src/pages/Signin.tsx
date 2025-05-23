@@ -14,7 +14,7 @@ export const Signin = () => {
     const [error, setError] = useState("");
     const navigate = useNavigate();
 
-    const BASE_URL = import.meta.env.VITE_BASE_URL;
+    const BASE_URL = "https://backend.sumitbhuia.workers.dev";
 
     const handleSignIn = async () => {
         try {

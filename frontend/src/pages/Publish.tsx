@@ -17,7 +17,7 @@ export function Publish(): JSX.Element {
     const navigate = useNavigate();
 
     const token = localStorage.getItem("token");
-    const BASE_URL = import.meta.env.VITE_BASE_URL;
+    const BASE_URL = "https://backend.sumitbhuia.workers.dev";
 
     if (!token) {
         navigate("/signin");
