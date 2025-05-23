@@ -5,19 +5,19 @@
     "deploy": "wrangler deploy --minify src/index.ts"
   },
   "dependencies": {
-    "@prisma/client": "^5.16.2",
-    "@prisma/extension-accelerate": "^1.1.0",
+    "@prisma/client": "^6.8.2",
+    "@prisma/extension-accelerate": "^2.0.0",
     "@sumitbhuia/medium_common": "^1.0.0",
-    "hono": "^4.4.12"
+    "hono": "^4.7.10"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20240529.0",
-    "@types/node": "^20.14.10",
-    "dotenv-cli": "^7.4.2",
-    "prisma": "^5.16.2",
+    "@cloudflare/workers-types": "^4.20250523.0",
+    "@types/node": "^22.15.21",
+    "dotenv-cli": "^8.0.0",
+    "prisma": "^6.8.2",
     "ts-node": "^10.9.2",
-    "typescript": "^5.5.3",
-    "wrangler": "^3.57.2"
+    "typescript": "^5.8.3",
+    "wrangler": "^4.16.1"
   },
   "description": "``` npm install npm run dev ```",
   "version": "1.0.0",

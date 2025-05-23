@@ -1,8 +1,7 @@
 import { Context } from "hono";
 import { Jwt } from "hono/utils/jwt";
-import { PrismaClient } from '@prisma/client/edge';
-import { withAccelerate } from "@prisma/extension-accelerate";
 import { signInSchema , signUpSchema } from "@sumitbhuia/medium_common";
+import { getPrisma } from "../lib/prisma";
 
 
 enum StatusCodes{
@@ -14,14 +13,7 @@ enum StatusCodes{
 }
 
 export async function signup(c:Context) {
-
-    
-    const prisma = new PrismaClient({
-        datasourceUrl : c.env.DATABASE_URL,
-    }).$extends(withAccelerate());
-
-    
-
+    const prisma = getPrisma(c.env.DATABASE_URL);
 
     try {
         const body : {
@@ -30,12 +22,7 @@ export async function signup(c:Context) {
             password : string
         } = await c.req.json();
 
-        
-
-        
-
         const {username , email , password} = body;
-
         const parsedUser = signUpSchema.safeParse(body);
         
         // Zod error handling
@@ -80,9 +67,7 @@ export async function signup(c:Context) {
     }   
 }
 export async function signin(c:Context) {
-    const prisma = new PrismaClient({
-        datasourceUrl : c.env.DATABASE_URL,
-    }).$extends(withAccelerate());
+    const prisma = getPrisma(c.env.DATABASE_URL);
 
     try {
 
@@ -112,9 +97,9 @@ export async function signin(c:Context) {
 
         //  This is not required as prisma will throw an error if user not found
         //  Checking credential match
-        // if(checkUser.password != password){
-        //     return c.json('Wrong credentials', StatusCodes.BAD_REQUEST);
-        // }
+        if(checkUser.password != password){
+            return c.json('Wrong credentials', StatusCodes.BAD_REQUEST);
+        }
 
 
         const token = await Jwt.sign({userId:checkUser?.id},c.env.JWT_SECRET);

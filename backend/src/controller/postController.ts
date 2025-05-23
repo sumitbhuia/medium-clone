@@ -1,7 +1,9 @@
 import { Context } from "hono";
 import { PrismaClient } from '@prisma/client/edge'
 import { withAccelerate } from "@prisma/extension-accelerate";
+// import prisma from "../lib/prisma";
 import { postInputSchema ,updatePostInputSchema } from "@sumitbhuia/medium_common";
+import { getPrisma } from "../lib/prisma";
 
 
 enum StatusCodes{
@@ -14,10 +16,7 @@ enum StatusCodes{
 
 
 export async function getAllPosts(c:Context) {
-    const prisma = new PrismaClient({
-        datasourceUrl : c.env.DATABASE_URL,
-    }).$extends(withAccelerate());
-
+    const prisma = getPrisma(c.env.DATABASE_URL);
 
     try {
         const allPost = await prisma.post.findMany({
@@ -34,10 +33,7 @@ export async function getAllPosts(c:Context) {
 }
 export async function createPost(c:Context) {
 
-    const prisma = new PrismaClient({
-        datasourceUrl : c.env.DATABASE_URL,
-    }).$extends(withAccelerate());
-
+    const prisma = getPrisma(c.env.DATABASE_URL);
 
     try {
         const body  = await c.req.json();
@@ -76,9 +72,7 @@ export async function createPost(c:Context) {
 }
 export async function getPostById(c:Context) {
 
-    const prisma = new PrismaClient({
-        datasourceUrl : c.env.DATABASE_URL,
-    }).$extends(withAccelerate());
+    const prisma = getPrisma(c.env.DATABASE_URL);
 
     try {
 
@@ -110,9 +104,7 @@ export async function getPostById(c:Context) {
 }
 export async function updatePostById(c:Context) {
 
-    const prisma = new PrismaClient({
-        datasourceUrl : c.env.DATABASE_URL,
-    }).$extends(withAccelerate());
+    const prisma = getPrisma(c.env.DATABASE_URL);
 
     try {
         // const pid:number  = Number(c.req.param('id'));
