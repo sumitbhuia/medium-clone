@@ -15,7 +15,7 @@ export function BlogCard({post}: any): JSX.Element {
   
 const time = Math.ceil(wordCount / 225); // 225 wpm
 
- const url: string = "https://random.imagecdn.app/150/150";
+ const url: string = "https://picsum.photos/150/150";
 
   const month_names_short = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
   const date = new Date(post.createdAt);

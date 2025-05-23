@@ -22,6 +22,7 @@ export const Blogs = () => {
     const [posts , setPosts] = useState<BlogProps[]>([]);
     const [loading, setLoading] = useState(true);
     const name:string = localStorage.getItem("username")||`!`;
+    const userId:number = Number(localStorage.getItem("userId"));
     const token = localStorage.getItem("token");
     const navigate = useNavigate();
    
@@ -75,7 +76,7 @@ export const Blogs = () => {
 
 return <div className="flex flex-col min-h-screen bg-white">
     
-    <Appbar name={name}/>
+    <Appbar name={name} blogOwnerId={userId}/>
     <div className="flex-grow p-4 sm:p-6 md:p-8 max-w-4xl mx-auto w-full">
         <div >
             {/* Reverse the posts using slice() and reverse()
