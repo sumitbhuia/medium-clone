@@ -85,24 +85,9 @@ interface PublishBarProps {
             className="text-gray-600 hover:text-black focus:outline-none focus:ring-2 focus:ring-gray-300 rounded-full p-1.5 transition duration-150"
             aria-label="Sign out"
           >
-            <SignOutIcon size={20} color="currentColor" />
+            <Icons.SignOutIcon size={20} color="currentColor" />
           </button>
         </div>
       </div>
     );
   }
-
-
-  // SignOutIcon (new)
-export const SignOutIcon = ({ size = 24, color = "black", ...props }) => (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill={color}
-      width={size}
-      height={size}
-      {...props}
-    >
-      <path d="M4 18H6V20H18V4H6V6H4V3C4 2.44772 4.44772 2 5 2H19C19.5523 2 20 2.44772 20 3V21C20 21.5523 19.5523 22 19 22H5C4.44772 22 4 21.5523 4 21V18ZM6 11H13V13H6V16L1 12L6 8V11Z"></path>
-    </svg>
-  );

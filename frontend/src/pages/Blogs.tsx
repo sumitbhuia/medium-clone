@@ -21,8 +21,6 @@ export const Blogs = () => {
   const [posts, setPosts] = useState<BlogProps[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
-  const [username, setUsername] = useState<string>("!");
-  const [userId, setUserId] = useState<string>("");
   const navigate = useNavigate();
 
   const BASE_URL = import.meta.env.VITE_BASE_URL;
@@ -37,23 +35,6 @@ export const Blogs = () => {
           return;
         }
 
-        // Get user data from session
-        const user = session.user;
-        setUserId(user.id);
-
-        // Fetch username from User table
-        const { data: userData, error: userError } = await supabase
-          .from("User")
-          .select("username")
-          .eq("id", user.id)
-          .single();
-
-        if (userError) {
-          console.error("Error fetching username:", userError.message);
-          setUsername(user.email || "!");
-        } else {
-          setUsername(userData?.username || user.email || "!");
-        }
 
         // Fetch posts from the backend
         const response = await fetch(`${BASE_URL}/api/v1/blog/allPosts`, {
@@ -121,7 +102,7 @@ export const Blogs = () => {
 
   return (
     <div className="flex flex-col min-h-screen bg-white">
-      <Appbar name={username} blogOwnerId={userId} />
+      <Appbar/>
       <div className="flex-grow p-4 sm:p-6 md:p-8 max-w-4xl mx-auto w-full">
         <div>
           {posts.slice().reverse().map((post) => (

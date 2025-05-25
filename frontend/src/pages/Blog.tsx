@@ -22,8 +22,8 @@ export const Blog = () => {
   const [blog, setBlog] = useState<BlogProp | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>("");
-  const [username, setUsername] = useState<string>("!");
-  const [userId, setUserId] = useState<string>("");
+
+
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
@@ -39,23 +39,10 @@ export const Blog = () => {
           return;
         }
 
-        // Get user data from session
-        const user = session.user;
-        setUserId(user.id);
 
-        // Fetch username from User table
-        const { data: userData, error: userError } = await supabase
-          .from("User")
-          .select("username")
-          .eq("id", user.id)
-          .single();
 
-        if (userError) {
-          console.error("Error fetching username:", userError.message);
-          setUsername(user.email || "!");
-        } else {
-          setUsername(userData?.username || user.email || "!");
-        }
+
+
 
         // Fetch the blog post from the backend
         const response = await fetch(`${BASE_URL}/api/v1/blog/${id}`, {
@@ -121,7 +108,7 @@ export const Blog = () => {
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-3">
-      <Appbar name={username} blogOwnerId={userId} blogId={id} />
+      <Appbar/>
       <div className="container mx-auto p-4 sm:p-6">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           <div className="lg:col-span-8">

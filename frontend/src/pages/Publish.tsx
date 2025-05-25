@@ -8,6 +8,7 @@ import { supabase } from "../supabaseClient";
 export function Publish(): JSX.Element {
   const [title, setTitle] = useState<string>("");
   const [editor, setEditor] = useState<Editor | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [username, setUsername] = useState<string>("!");
   const [error, setError] = useState<string>("");
   const navigate = useNavigate();
@@ -63,6 +64,7 @@ export function Publish(): JSX.Element {
 
     try {
       setError(""); // Clear previous errors
+      setIsUpdating(true);
 
       // Get the current user's session to retrieve the JWT
       const { data: { session } } = await supabase.auth.getSession();
@@ -96,13 +98,15 @@ export function Publish(): JSX.Element {
       navigate(`/blog/${result.data.id}`);
     } catch (err: any) {
       setError(err.message || "Failed to publish post. Please try again.");
+    } finally {
+      setIsUpdating(false);
     }
   };
 
   return (
     <div className="publish-container flex flex-col min-h-screen bg-white">
       <div className="border-b py-1 px-4 sm:py-2 sm:px-4 md:py-3 md:px-6 lg:py-4 lg:px-8">
-        <PublishBar name={username} onPublish={handleSave} />
+        <PublishBar name={username} onPublish={handleSave} isPublishing={isUpdating} />
       </div>
       <div className="content-area pt-10 px-4 sm:px-6 md:px-8 max-w-4xl mx-auto w-full">
         {error && (
@@ -117,7 +121,7 @@ export function Publish(): JSX.Element {
               fill="currentColor"
               viewBox="0 0 20 20"
             >
-              <path d="M10 .5a9.5 9.5 0 1 0 9.5 9.5A9.51 9.51 0 0 0 10 .5ZM9.5 4a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 15H8a1 1 0 0 1 0-2h1v-3H8a1 1 0 0 1 0-2h2a1 1 0 0 1 1 1v4h1a1 1 0 0 1 0 2Z"/>
+              <path d="M10 .5a9.5 9.5 0 1 0 9.5 9.5A9.51 9.51 0 0 0 10 .5ZM9.5 4a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 15H8a1 1 0 0 1 0-2h1v-3H8a1 1 0 0 1 0-2h2a1 1 0 0 1 1 1v4h1a1 1 0 0 1 0 2Z" />
             </svg>
             <span className="sr-only">Error</span>
             <div>

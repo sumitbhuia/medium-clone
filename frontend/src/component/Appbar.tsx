@@ -1,44 +1,83 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { useEffect, useState } from "react";
 import Avatar from "./Avatar";
 import medium from '../../public/medium.png';
 import { supabase } from "../supabaseClient";
+import * as Icons from "../Icons";
 
-// Sign-out function (already provided)
+// Sign-out function
 export const signOut = async () => {
   const { error } = await supabase.auth.signOut();
   if (error) console.error("Sign out error:", error.message);
 };
 
-// Appbar Props
-interface AppbarProps {
-  name: string;
-  blogOwnerId?: string;
-  blogId?: number | string;
-}
-
 // Appbar Component
-export function Appbar({ name, blogOwnerId, blogId }: AppbarProps): JSX.Element {
+export function Appbar(): JSX.Element {
   const navigate = useNavigate();
-  const currentUserId = (localStorage.getItem("userId"));
-  console.log("cui",currentUserId)
+  const { id: postId } = useParams(); // Extract postId from URL (e.g., /blog/:id)
+  const [session, setSession] = useState<any>(null);
+  const [name, setName] = useState<string>("User");
+  const [canEdit, setCanEdit] = useState<boolean>(false);
 
-  const userString = localStorage.getItem("user");
-  console.log("ustring",userString)
+  const BASE_URL = import.meta.env.VITE_BASE_URL;
 
-let avatar_url = null; // Default to null if not found
+  useEffect(() => {
+    const fetchSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setSession(session);
+      if (session?.user?.user_metadata?.name) {
+        setName(session.user.user_metadata.name);
+      }
+    };
 
-if (userString) {
-  try {
-    // Parse the JSON string into an object
-    const user = JSON.parse(userString);
-    // Access the nested avatar_url field
-    avatar_url = user || null;
-  } catch (error) {
-    console.error("Error parsing user data from localStorage:", error);
-  }
-}
+    fetchSession();
 
-console.log("a",avatar_url);
+    // Set up a listener for auth state changes
+    const { data: authListener } = supabase.auth.onAuthStateChange((_, newSession) => {
+      setSession(newSession);
+      if (newSession?.user?.user_metadata?.name) {
+        setName(newSession.user.user_metadata.name);
+      }
+    });
+
+    // Cleanup listener on unmount
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
+
+  // Fetch edit permission when session and postId are available
+  useEffect(() => {
+    const checkEditPermission = async () => {
+      if (!session?.user?.id || !postId || !session?.access_token) return;
+
+      try {
+        const response = await fetch(
+          `${BASE_URL}/api/v1/blog/can-edit-post?postId=${postId}&userId=${session.user.id}`,
+          {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`, // Add the Bearer token
+            },
+          }
+        );
+
+        const data = await response.json();
+        if (response.ok) {
+          setCanEdit(data.isOwner || false);
+        } else {
+          console.error("Failed to check edit permission:", data.error);
+          setCanEdit(false);
+        }
+      } catch (error) {
+        console.error("Error checking edit permission:", error);
+        setCanEdit(false);
+      }
+    };
+
+    checkEditPermission();
+  }, [session, postId]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -46,101 +85,57 @@ console.log("a",avatar_url);
   };
 
   return (
-    <div className="flex justify-between items-center bg-white border-b border-gray-200 p-4">
+    <div className="sticky top-0 z-50 flex justify-between items-center bg-white border-b border-gray-200 p-4 shadow-sm">
       {/* Logo */}
       <Link to="/blogs">
         <img
-          className="h-8 sm:h-10 cursor-pointer"
+          className="h-9 sm:h-11 cursor-pointer transition-transform duration-200 hover:scale-105"
           alt="Medium Logo"
           src={medium}
         />
       </Link>
 
-      <div className="flex items-center space-x-4">
+      <div className="flex items-center space-x-5">
         {/* Write Button */}
         <button
           onClick={() => navigate('/publish')}
-          className="flex items-center text-sm font-medium text-gray-700 hover:text-black focus:outline-none focus:ring-2 focus:ring-gray-300 rounded-full px-3 py-1.5 transition duration-150"
+          className="flex items-center text-sm font-semibold text-gray-700 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300 rounded-full px-4 py-2 transition duration-200 bg-gray-100 hover:bg-gray-200"
           aria-label="Write a new post"
         >
-          <span className="mr-1">Write</span>
-          <PlusIcon size={20} color="currentColor" />
+          <span className="mr-1.5">Write</span>
+          <Icons.PlusIcon size={20} color="currentColor" />
         </button>
 
         {/* Edit Button (conditional) */}
-        {blogOwnerId && blogId && currentUserId === blogOwnerId && (
+        {postId && canEdit && (
           <button
-            onClick={() => navigate(`/edit/${blogId}`)}
-            className="flex items-center text-sm font-medium text-gray-700 hover:text-black focus:outline-none focus:ring-2 focus:ring-gray-300 rounded-full px-3 py-1.5 transition duration-150"
+            onClick={() => navigate(`/edit/${postId}`)}
+            className="flex items-center text-sm font-semibold text-gray-700 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300 rounded-full px-4 py-2 transition duration-200 bg-gray-100 hover:bg-gray-200"
             aria-label="Edit this post"
           >
-            <span className="mr-1">Edit</span>
-            <PencilIcon size={20} color="currentColor" />
+            <span className="mr-1.5">Edit</span>
+            <Icons.PencilIcon size={20} color="currentColor" />
           </button>
         )}
 
         {/* Avatar */}
         <button
           onClick={() => navigate('/profile')}
-          className="focus:outline-none focus:ring-2 focus:ring-gray-300 rounded-full"
+          className="focus:outline-none focus:ring-2 focus:ring-blue-300 rounded-full transition duration-200 hover:scale-105"
           aria-label={`View profile of ${name}`}
         >
-          <Avatar name={name} size={38} />
+          <Avatar name={name} size={40} />
         </button>
 
         {/* Sign Out Button */}
         <button
           onClick={handleSignOut}
-          className="text-gray-600 hover:text-black focus:outline-none focus:ring-2 focus:ring-gray-300 rounded-full p-1.5 transition duration-150"
+          className="text-gray-600 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-red-300 rounded-full p-2 transition duration-200"
           aria-label="Sign out"
         >
-          <SignOutIcon size={20} color="currentColor" />
+          <Icons.SignOutIcon size={22} color="currentColor" />
         </button>
       </div>
     </div>
   );
 }
-
-
-
-// PlusIcon (unchanged)
-export const PlusIcon = ({ size = 24, color = "black", ...props }) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    fill={color}
-    width={size}
-    height={size}
-    {...props}
-  >
-    <path d="M12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22ZM11 11H7V13H11V17H13V13H17V11H13V7H11V11Z"></path>
-  </svg>
-);
-
-// PencilIcon (unchanged)
-export const PencilIcon = ({ size = 24, color = "black", ...props }) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    fill={color}
-    width={size}
-    height={size}
-    {...props}
-  >
-    <path d="M15.7279 9.57627L14.3137 8.16206L5 17.4758V18.89H6.41421L15.7279 9.57627ZM17.1421 8.16206L18.5563 6.74785L17.1421 5.33363L15.7279 6.74785L17.1421 8.16206ZM7.24264 20.89H3V16.6473L16.435 3.21231C16.8256 2.82179 17.4587 2.82179 17.8492 3.21231L20.6777 6.04074C21.0682 6.43126 21.0682 7.06443 20.6777 7.45495L7.24264 20.89Z"></path>
-  </svg>
-);
-
-// SignOutIcon (new)
-export const SignOutIcon = ({ size = 24, color = "black", ...props }) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    fill={color}
-    width={size}
-    height={size}
-    {...props}
-  >
-    <path d="M4 18H6V20H18V4H6V6H4V3C4 2.44772 4.44772 2 5 2H19C19.5523 2 20 2.44772 20 3V21C20 21.5523 19.5523 22 19 22H5C4.44772 22 4 21.5523 4 21V18ZM6 11H13V13H6V16L1 12L6 8V11Z"></path>
-  </svg>
-);
