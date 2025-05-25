@@ -4,6 +4,7 @@ import Avatar from "./Avatar";
 import medium from '../../public/medium.png';
 import { supabase } from "../supabaseClient";
 import * as Icons from "../Icons";
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 
 // Sign-out function
 export const signOut = async () => {
@@ -33,12 +34,14 @@ export function Appbar(): JSX.Element {
     fetchSession();
 
     // Set up a listener for auth state changes
-    const { data: authListener } = supabase.auth.onAuthStateChange((_, newSession) => {
-      setSession(newSession);
-      if (newSession?.user?.user_metadata?.name) {
-        setName(newSession.user.user_metadata.name);
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (_: AuthChangeEvent, newSession: Session | null) => {
+        setSession(newSession);
+        if (newSession?.user?.user_metadata?.name) {
+          setName(newSession.user.user_metadata.name);
+        }
       }
-    });
+    );
 
     // Cleanup listener on unmount
     return () => {
