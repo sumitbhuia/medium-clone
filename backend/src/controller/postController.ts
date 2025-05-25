@@ -1,9 +1,11 @@
 import { Context } from "hono";
 import { getPrisma } from "../lib/prisma";
-import { postInputSchema, updatePostInputSchema } from "@sumitbhuia/medium_common";
+import {
+  postInputSchema,
+  updatePostInputSchema,
+} from "@sumitbhuia/medium_common";
 
 // Define a custom context type to include userId as a string
-
 
 enum StatusCodes {
   OK = 200,
@@ -11,12 +13,6 @@ enum StatusCodes {
   UNAUTHORIZED = 401,
   NOT_FOUND = 404,
   INTERNAL_SERVER_ERROR = 500,
-}
-
-// Consistent response format
-interface ApiResponse<T> {
-  data?: T;
-  error?: string;
 }
 
 export async function getAllPosts(c: Context) {
@@ -179,6 +175,50 @@ export async function updatePostById(c: Context) {
     console.error("Error updating post by ID:", error);
     return c.json(
       { error: "Failed to update post" },
+      StatusCodes.INTERNAL_SERVER_ERROR
+    );
+  }
+}
+
+
+
+export async function getPostOwner(c: Context) {
+  const prisma = getPrisma(c.env.DATABASE_URL);
+
+  try {
+    // Parse query parameters
+    const { postId, userId } = c.req.query();
+
+    // Validate query parameters
+    if (!postId || !userId) {
+      return c.json(
+        { error: "Missing postId or userId in query parameters" },
+        StatusCodes.BAD_REQUEST
+      );
+    }
+
+
+
+    const post = await prisma.post.findUnique({
+      where: {
+        id: Number(postId),
+      },
+      select: {
+        userId: true,
+      },
+    });
+
+    if (!post) {
+      return c.json({ error: "Post not found" }, StatusCodes.NOT_FOUND);
+    }
+
+    const isOwner = post.userId === userId;
+
+    return c.json({ isOwner }, StatusCodes.OK);
+  } catch (error) {
+    console.error("Error in getPostOwner:", error);
+    return c.json(
+      { error: "Internal server error" },
       StatusCodes.INTERNAL_SERVER_ERROR
     );
   }
