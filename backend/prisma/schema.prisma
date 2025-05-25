@@ -1,7 +1,5 @@
 generator client {
   provider = "prisma-client-js"
-
-
 }
 
 datasource db {
@@ -14,16 +12,15 @@ model Post {
   id          Int      @id @default(autoincrement())
   title       String
   description String
-  userId      Int
-  published Boolean  @default(false)
+  userId      String
   createdAt   DateTime @default(now())
+  published   Boolean  @default(false)
   User        User     @relation(fields: [userId], references: [id])
 }
 
 model User {
-  id       Int     @id @default(autoincrement())
+  id       String  @id
   email    String  @unique
   username String?
-  password String
   Post     Post[]
 }

@@ -1,151 +1,185 @@
 import { Context } from "hono";
-import { PrismaClient } from '@prisma/client/edge'
-import { withAccelerate } from "@prisma/extension-accelerate";
-// import prisma from "../lib/prisma";
-import { postInputSchema ,updatePostInputSchema } from "@sumitbhuia/medium_common";
 import { getPrisma } from "../lib/prisma";
+import { postInputSchema, updatePostInputSchema } from "@sumitbhuia/medium_common";
+
+// Define a custom context type to include userId as a string
 
 
-enum StatusCodes{
-    OK = 200,
-    BAD_REQUEST = 400,
-    UNAUTHORISED = 401,
-    NOT_FOUND = 404,
-    INTERNAL_SERVER_ERROR = 500,
+enum StatusCodes {
+  OK = 200,
+  BAD_REQUEST = 400,
+  UNAUTHORIZED = 401,
+  NOT_FOUND = 404,
+  INTERNAL_SERVER_ERROR = 500,
 }
 
-
-export async function getAllPosts(c:Context) {
-    const prisma = getPrisma(c.env.DATABASE_URL);
-
-    try {
-        const allPost = await prisma.post.findMany({
-            include:{
-                User:true
-            }
-        });
-        return c.json(allPost,StatusCodes.OK);
-        
-    } catch (error) {
-        return c.json({error : `Error getting all posts.${error}`},StatusCodes.INTERNAL_SERVER_ERROR)
-        
-    }
+// Consistent response format
+interface ApiResponse<T> {
+  data?: T;
+  error?: string;
 }
-export async function createPost(c:Context) {
 
-    const prisma = getPrisma(c.env.DATABASE_URL);
+export async function getAllPosts(c: Context) {
+  const prisma = getPrisma(c.env.DATABASE_URL);
 
-    try {
-        const body  = await c.req.json();
-        const parsedPost = postInputSchema.safeParse(body);
+  try {
+    const allPosts = await prisma.post.findMany({
+      where: { published: true }, // Only fetch published posts
+      include: {
+        User: {
+          select: { username: true, email: true }, // Only include necessary fields
+        },
+      },
+    });
 
-        if(!parsedPost.success){
-            return c.json({error : 'Invalid post input'},StatusCodes.BAD_REQUEST);
-        }
-
-        const {title, description} = parsedPost.data;
-
-
-        if(!title || !description){
-            return c.json({error : 'Please provide title, description'},StatusCodes.BAD_REQUEST);
-        }
-
-        // Because c.get(`userId`) returned an object not an int
-        // something like this {userId : 1}
-        const userId = c.get(`userId`).userId;
-
-        
-        const newPost = await prisma.post.create({
-            data:{
-                title,
-                description,
-                userId,
-            }
-        })
-
-        return c.json(newPost,StatusCodes.OK);
-        
-    } catch (error) {
-        return c.json({error : `Error creating post.${error}`},StatusCodes.INTERNAL_SERVER_ERROR)
-        
-    }
+    return c.json({ data: allPosts }, StatusCodes.OK);
+  } catch (error) {
+    console.error("Error fetching all posts:", error);
+    return c.json(
+      { error: "Failed to fetch posts" },
+      StatusCodes.INTERNAL_SERVER_ERROR
+    );
+  }
 }
-export async function getPostById(c:Context) {
 
-    const prisma = getPrisma(c.env.DATABASE_URL);
+export async function createPost(c: Context) {
+  const prisma = getPrisma(c.env.DATABASE_URL);
 
-    try {
+  try {
+    const body = await c.req.json();
+    const parsedPost = postInputSchema.safeParse(body);
 
-         // Typecasting id to number
-         const pid:number  = Number(c.req.param('id'));
-
-         // Whenever checking if exists or not 
-         // give two parameters to findUnique (i.e.post only of that user)
-         const post = await prisma.post.findUnique({
-             where:{
-                 id:pid,
-                //  userId : c.get(`userId`).userId
-             }, 
-                include:{
-                    User:true
-                }
-         });
-
-         if(!post){
-             return c.json({msg :'Post not found'}, StatusCodes.NOT_FOUND);
-         }
-         return c.json(post);
-        
-        
-    } catch (error) {
-        return c.json({error : `Error getting post by id.${error}`},StatusCodes.INTERNAL_SERVER_ERROR)
-        
+    if (!parsedPost.success) {
+      return c.json({ error: "Invalid post input" }, StatusCodes.BAD_REQUEST);
     }
+
+    const { title, description } = parsedPost.data;
+    const userId = c.get("userId"); // userId is a string (UUID)
+
+    const newPost = await prisma.post.create({
+      data: {
+        title,
+        description,
+        userId,
+        published: true, // Set to true by default; adjust if drafts are needed
+      },
+      include: {
+        User: {
+          select: { username: true, email: true },
+        },
+      },
+    });
+
+    return c.json({ data: newPost }, StatusCodes.OK);
+  } catch (error) {
+    console.error("Error creating post:", error);
+    return c.json(
+      { error: "Failed to create post" },
+      StatusCodes.INTERNAL_SERVER_ERROR
+    );
+  }
 }
-export async function updatePostById(c:Context) {
 
-    const prisma = getPrisma(c.env.DATABASE_URL);
+export async function getPostById(c: Context) {
+  const prisma = getPrisma(c.env.DATABASE_URL);
 
-    try {
-        const id = Number(c.req.param('id'));
-        const body = await c.req.json();
-        const parsedPost = updatePostInputSchema.safeParse({ ...body , id });
-        if(!parsedPost.success){
-            return c.json({error : 'Invalid post input'},StatusCodes.BAD_REQUEST);
-        }
-
-        const { title, description } = parsedPost.data;
-      
-
-        const post = await prisma.post.findUnique({
-            where:{
-                id,
-                userId : c.get(`userId`).userId
-            }
-        });
-
-        if(!post){
-            return c.json({msg :'Post not found'}, StatusCodes.NOT_FOUND);
-        }
-
-        const updatedPost = await prisma.post.update({
-                where : {
-                    id,
-                    userId : c.get(`userId`).userId
-                },
-                data:{
-                    title,
-                    description,
-                },
-
-            
-        })
-
-        return c.json(updatedPost,StatusCodes.OK);
-
-
-    } catch (error) {
-        return c.json({error : `Error updating post by id.${error}`},StatusCodes.INTERNAL_SERVER_ERROR)
-        
+  try {
+    const pid = Number(c.req.param("id"));
+    if (isNaN(pid) || pid <= 0) {
+      return c.json({ error: "Invalid post ID" }, StatusCodes.BAD_REQUEST);
     }
+
+    const post = await prisma.post.findUnique({
+      where: {
+        id: pid,
+      },
+      include: {
+        User: {
+          select: { username: true, email: true },
+        },
+      },
+    });
+
+    if (!post) {
+      return c.json({ error: "Post not found" }, StatusCodes.NOT_FOUND);
+    }
+
+    // Optionally, restrict access to unpublished posts
+    if (!post.published) {
+      const userId = c.get("userId");
+      if (post.userId !== userId) {
+        return c.json(
+          { error: "Unauthorized: Cannot access unpublished post" },
+          StatusCodes.UNAUTHORIZED
+        );
+      }
+    }
+
+    return c.json({ data: post }, StatusCodes.OK);
+  } catch (error) {
+    console.error("Error fetching post by ID:", error);
+    return c.json(
+      { error: "Failed to fetch post" },
+      StatusCodes.INTERNAL_SERVER_ERROR
+    );
+  }
+}
+
+export async function updatePostById(c: Context) {
+  const prisma = getPrisma(c.env.DATABASE_URL);
+
+  try {
+    const id = Number(c.req.param("id"));
+    if (isNaN(id) || id <= 0) {
+      return c.json({ error: "Invalid post ID" }, StatusCodes.BAD_REQUEST);
+    }
+
+    const body = await c.req.json();
+    const parsedPost = updatePostInputSchema.safeParse({ ...body, id });
+    if (!parsedPost.success) {
+      return c.json({ error: "Invalid post input" }, StatusCodes.BAD_REQUEST);
+    }
+
+    const { title, description } = parsedPost.data;
+    const userId = c.get("userId");
+
+    // Check if the post exists and belongs to the user
+    const post = await prisma.post.findUnique({
+      where: {
+        id,
+        userId,
+      },
+    });
+
+    if (!post) {
+      return c.json(
+        { error: "Post not found or you are not authorized to update it" },
+        StatusCodes.NOT_FOUND
+      );
+    }
+
+    const updatedPost = await prisma.post.update({
+      where: {
+        id,
+        userId,
+      },
+      data: {
+        title,
+        description,
+      },
+      include: {
+        User: {
+          select: { username: true, email: true },
+        },
+      },
+    });
+
+    return c.json({ data: updatedPost }, StatusCodes.OK);
+  } catch (error) {
+    console.error("Error updating post by ID:", error);
+    return c.json(
+      { error: "Failed to update post" },
+      StatusCodes.INTERNAL_SERVER_ERROR
+    );
+  }
 }
