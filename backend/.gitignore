@@ -19,7 +19,9 @@ node_modules/
 .env
 .env.production
 .dev.vars
-
+./wrangler.toml
+wrangler.toml
+.wrangler.toml
 # logs
 logs/
 *.log
@@ -31,3 +33,4 @@ lerna-debug.log*
 
 # misc
 .DS_Store
+
