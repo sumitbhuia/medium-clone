@@ -105,8 +105,6 @@ export function Edit(): JSX.Element {
   }
 
 
-  const name = blog.author.username || "?";
-
   return (
     <div className="min-h-screen px-4 sm:px-6 lg:px-8 py-3 overscroll-contain">
       <Header
