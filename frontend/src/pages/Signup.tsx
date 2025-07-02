@@ -50,7 +50,7 @@ export const Signup = () => {
         localStorage.setItem("email", data.user.email || email);
         localStorage.setItem("userId", data.user.id);
 
-        navigate("/blogs", { state: { username: name } });
+        navigate("/signin", { state: { username: name } });
       }
     } catch (err:any) {
       setError(err.message || "Failed to sign up. Please try again.");

@@ -1,9 +1,10 @@
 import { useNavigate } from "react-router-dom";
-import { PublishBar } from "../component/PublishBar";
+import { Header, HeaderPresets } from "../component/Header";
 import Tiptap from "../component/Tiptap";
 import { Editor } from '@tiptap/core';
-import { useState, useEffect } from 'react';
-import { supabase } from "../supabaseClient";
+import { useState } from 'react';
+
+import { api } from "../api";
 
 export function Publish(): JSX.Element {
   const [title, setTitle] = useState<string>("");
@@ -13,37 +14,8 @@ export function Publish(): JSX.Element {
   const [error, setError] = useState<string>("");
   const navigate = useNavigate();
 
-  const BASE_URL = import.meta.env.VITE_BASE_URL;
 
-  // Check authentication and fetch user data on mount
-  useEffect(() => {
-    const checkSession = async () => {
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session) {
-        navigate("/signin");
-        return;
-      }
 
-      // Get user data from session
-      const user = session.user;
-
-      // Fetch username from User table
-      const { data: userData, error: userError } = await supabase
-        .from("User")
-        .select("username")
-        .eq("id", user.id)
-        .single();
-
-      if (userError) {
-        console.error("Error fetching username:", userError.message);
-        setUsername(user.email || "!");
-      } else {
-        setUsername(userData?.username || user.email || "!");
-      }
-    };
-
-    checkSession();
-  }, [navigate]);
 
   const handleSave = async () => {
     if (!editor) {
@@ -66,36 +38,10 @@ export function Publish(): JSX.Element {
       setError(""); // Clear previous errors
       setIsUpdating(true);
 
-      // Get the current user's session to retrieve the JWT
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        navigate("/signin");
-        return;
-      }
+      const result = await api.createPost(title, description);
+      setUsername(result.author.username);
+      navigate(`/blog/${result.id}`);
 
-      const token = session.access_token;
-
-      // Make a POST request to the backend to create the post
-      const response = await fetch(`${BASE_URL}/api/v1/blog/create`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          title,
-          description,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to publish post");
-      }
-
-      // Navigate to the newly created post
-      navigate(`/blog/${result.data.id}`);
     } catch (err: any) {
       setError(err.message || "Failed to publish post. Please try again.");
     } finally {
@@ -106,7 +52,17 @@ export function Publish(): JSX.Element {
   return (
     <div className="publish-container flex flex-col min-h-screen bg-white">
       <div className="border-b py-1 px-4 sm:py-2 sm:px-4 md:py-3 md:px-6 lg:py-4 lg:px-8">
-        <PublishBar name={username} onPublish={handleSave} isPublishing={isUpdating} />
+        {/* <PublishBar name={username} onPublish={handleSave} isPublishing={isUpdating}   showNotifications = {true} showOptions = {true}/> */}
+        <Header
+          {...HeaderPresets.publish({
+            userName: username,
+            onPublish: handleSave,
+            isPublishing: isUpdating,
+            showNotifications: true,
+            showOptions: true
+          })}
+        />
+
       </div>
       <div className="content-area pt-10 px-4 sm:px-6 md:px-8 max-w-4xl mx-auto w-full">
         {error && (

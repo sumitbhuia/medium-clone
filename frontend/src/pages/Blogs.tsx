@@ -1,65 +1,89 @@
 import { useEffect, useState } from "react";
-import * as Spinners from "react-loader-spinner";
-import { Appbar } from "../component/Appbar";
+import { Header, HeaderPresets } from "../component/Header";
 import { BlogCard } from "../component/BlogCard";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "../supabaseClient";
+import { api } from "../api";
 
-interface BlogProps {
-  username: string;
-  createdAt: string;
-  title: string;
-  description: string;
-  id: number;
-  userId: string; // Added userId to match backend response
-  User: {
-    username: string;
-  };
-}
+import { Post } from "../types"
+import { ThemeSpinner } from "../component/Spinner";
 
 export const Blogs = () => {
-  const [posts, setPosts] = useState<BlogProps[]>([]);
+  const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
+
   const navigate = useNavigate();
 
-  const BASE_URL = import.meta.env.VITE_BASE_URL;
+  const handleClap = async (postId: string) => {
+    try {
+      await api.toggleClap(postId);
+      setPosts(prev => prev.map(post =>
+        post.id === postId
+          ? {
+            ...post,
+            isClapped: !post.isClapped,
+            clapCount: post.clapCount + (post.isClapped ? -1 : 1)
+          }
+          : post
+      ));
+    } catch (err) {
+      console.error('Failed to clap post:', err);
+    }
+  };
+
+  const handleBookmark = async (postId: string) => {
+    try {
+      await api.toggleBookmark(postId);
+      setPosts(prev => prev.map(post =>
+        post.id === postId
+          ? {
+            ...post,
+            isBookmarked: !post.isBookmarked,
+            bookmarkCount: post.bookmarkCount + (post.isBookmarked ? -1 : 1)
+          }
+          : post
+      ));
+    } catch (err) {
+      console.error('Failed to bookmark post:', err);
+    }
+  };
+
+  const handleShare = async (postId: string) => { // Removed async as clipboard API can be sync in some contexts
+    const url = `${window.location.origin}/post/${postId}`; // Assuming post routes
+    navigator.clipboard.writeText(url)
+      .then(() => console.log('URL copied to clipboard'))
+      .catch(err => console.error('Failed to copy URL:', err));
+  };
+
+
+
 
   useEffect(() => {
     const fetchSessionAndPosts = async () => {
       try {
-        // Check if the user is authenticated
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError || !session) {
-          navigate("/signup");
-          return;
-        }
 
+        const result = await api.getAllPost();
 
-        // Fetch posts from the backend
-        const response = await fetch(`${BASE_URL}/api/v1/blog/allPosts`, {
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
-        });
-
-        const result = await response.json();
-
-        if (!response.ok) {
-          throw new Error(result.error || "Failed to fetch posts");
-        }
-
-        // Map the backend response to match BlogProps
-        const formattedPosts: BlogProps[] = result.data.map((post: any) => ({
+        const formattedPosts: Post[] = result.map((post: any) => ({
           id: post.id,
           title: post.title,
           description: post.description,
           createdAt: post.createdAt,
-          username: post.User?.username || "Unknown",
           userId: post.userId,
-          User: {
-            username: post.User?.username || "Unknown",
+          author: {
+            username: post.author?.username || "Unknown",
+            displayName: post.author?.displayName || "Unknown",
+            avatar: post.author?.avatar || "",
+            bio: post.author?.bio || "",
           },
+          readTime: post.readTime ?? 0,
+          clapCount: post.clapCount ?? 0,
+          responseCount: post.responseCount ?? 0,
+          bookmarkCount: post.bookmarkCount ?? 0,
+          isClapped: post.isClapped ?? false,
+          isBookmarked: post.isBookmarked ?? false,
+          tags: post.tags ?? [],
+          imageUrl: post.imageUrl ?? "",
         }));
 
         setPosts(formattedPosts);
@@ -75,20 +99,7 @@ export const Blogs = () => {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-screen w-screen">
-        <Spinners.Oval
-          visible={true}
-          height={50}
-          width={50}
-          color="#000000"
-          secondaryColor="#000000"
-          strokeWidth={3}
-          strokeWidthSecondary={4}
-          ariaLabel="oval-loading"
-          wrapperStyle={{}}
-          wrapperClass=""
-        />
-      </div>
+      <ThemeSpinner />
     );
   }
 
@@ -100,13 +111,29 @@ export const Blogs = () => {
     );
   }
 
+
   return (
     <div className="flex flex-col min-h-screen bg-white">
-      <Appbar/>
+      <Header
+        {...HeaderPresets.blog()}
+        shadow={false}
+        border={false} />
+
       <div className="flex-grow p-4 sm:p-6 md:p-8 max-w-4xl mx-auto w-full">
         <div>
-          {posts.slice().reverse().map((post) => (
-            <BlogCard key={post.id} post={post} />
+
+
+          {posts.map((post) => (
+            <BlogCard
+              key={post.id}
+              post={post}
+              showEngagementStats={true}
+              onClap={() => handleClap(post.id)}
+              onBookmark={() => handleBookmark(post.id)}
+              onShare={() => handleShare(post.id)}
+            />
+
+
           ))}
         </div>
       </div>

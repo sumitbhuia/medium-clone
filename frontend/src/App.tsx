@@ -4,7 +4,7 @@ import { Signin } from "./pages/Signin";
 import { Blogs } from "./pages/Blogs";
 import { Blog } from "./pages/Blog";
 import  {Publish}  from "./pages/Publish";
-import { Profile } from "./pages/Profile";
+import {Profile}  from "./pages/Profile";
 import { Edit } from "./pages/Edit";
 import './App.css'
 
