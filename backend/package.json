@@ -7,7 +7,9 @@
   "dependencies": {
     "@prisma/client": "^6.8.2",
     "@prisma/extension-accelerate": "^2.0.0",
-    "@sumitbhuia/medium_common": "^1.0.0",
+    "@sumitbhuia/medium_common": "^2.0.2",
+    "@supabase/ssr": "^0.6.1",
+    "@supabase/supabase-js": "^2.49.8",
     "hono": "^4.7.10"
   },
   "devDependencies": {

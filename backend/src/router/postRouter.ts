@@ -1,12 +1,12 @@
 import { Hono } from "hono";
 import { createPost, getAllPosts, getPostById, getPostOwner, updatePostById } from "../controller/postController";
-import { authMiddleware } from "../middleware/user";
+import { requireAuth } from "../middleware/auth";
 export const postRouter = new Hono();
 
-postRouter.get('/can-edit-post',authMiddleware,getPostOwner);
+postRouter.get('/can-edit-post',requireAuth,getPostOwner);
 postRouter.get('/allPosts', getAllPosts); 
 
-postRouter.post('/create',authMiddleware, createPost); 
-postRouter.get('/:id',authMiddleware, getPostById); 
-postRouter.put('/edit/:id',authMiddleware, updatePostById); 
+postRouter.post('/create',requireAuth, createPost); 
+postRouter.get('/:id',requireAuth, getPostById); 
+postRouter.put('/edit/:id',requireAuth, updatePostById); 
 

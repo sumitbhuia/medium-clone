@@ -8,19 +8,131 @@ datasource db {
   directUrl = env("DIRECT_DATABASE_URL")
 }
 
-model Post {
-  id          Int      @id @default(autoincrement())
-  title       String
-  description String
-  userId      String
-  createdAt   DateTime @default(now())
-  published   Boolean  @default(false)
-  User        User     @relation(fields: [userId], references: [id])
+model User {
+  id              String    @id @db.Uuid
+  email           String    @unique
+  username        String?    @unique
+  displayName     String?
+  bio             String?
+  avatar          String?
+  coverImage      String?
+  location        String?
+  website         String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  posts           Post[]
+  claps           Clap[]
+  bookmarks       Bookmark[]
+  comments        Comment[]
+  followers       Follow[]  @relation("UserFollowers")
+  following       Follow[]  @relation("UserFollowing")
+  
+  @@map("users")
 }
 
-model User {
-  id       String  @id
-  email    String  @unique
-  username String?
-  Post     Post[]
+model Post {
+  id              Int       @id @default(autoincrement())
+  title           String
+  description     String    
+  imageUrl        String?   // Featured image
+  readTime        Int?      // Calculated read time in minutes
+  published       Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  publishedAt     DateTime?
+  
+  // Author relation
+  userId          String    @db.Uuid
+  author          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Engagement relations
+  claps           Clap[]
+  bookmarks       Bookmark[]
+  comments        Comment[]
+  tags            PostTag[]
+  
+  @@map("posts")
+}
+
+model Tag {
+  id              Int       @id @default(autoincrement())
+  name            String    @unique
+  description     String?
+  createdAt       DateTime  @default(now())
+  
+  posts           PostTag[]
+  
+  @@map("tags")
+}
+
+model PostTag {
+  id              Int       @id @default(autoincrement())
+  postId          Int
+  tagId           Int
+  
+  post            Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag             Tag       @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  
+  @@unique([postId, tagId])
+  @@map("post_tags")
+}
+
+model Clap {
+  id              Int       @id @default(autoincrement())
+  userId          String    @db.Uuid
+  postId          Int
+  count           Int       @default(1) // Allow multiple claps from same user
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post            Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, postId])
+  @@map("claps")
+}
+
+model Bookmark {
+  id              Int       @id @default(autoincrement())
+  userId          String    @db.Uuid
+  postId          Int
+  createdAt       DateTime  @default(now())
+  
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post            Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, postId])
+  @@map("bookmarks")
+}
+
+model Comment {
+  id              Int       @id @default(autoincrement())
+  content         String
+  userId          String    @db.Uuid
+  postId          Int
+  parentId        Int?      // For nested comments/replies
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post            Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  parent          Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies         Comment[] @relation("CommentReplies")
+  
+  @@map("comments")
+}
+
+model Follow {
+  id              Int       @id @default(autoincrement())
+  followerId      String    @db.Uuid
+  followingId     String    @db.Uuid
+  createdAt       DateTime  @default(now())
+  
+  follower        User      @relation("UserFollowing", fields: [followerId], references: [id], onDelete: Cascade)
+  following       User      @relation("UserFollowers", fields: [followingId], references: [id], onDelete: Cascade)
+  
+  @@unique([followerId, followingId])
+  @@map("follows")
 }

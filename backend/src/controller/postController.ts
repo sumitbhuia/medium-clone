@@ -5,10 +5,9 @@ import {
   updatePostInputSchema,
 } from "@sumitbhuia/medium_common";
 
-// Define a custom context type to include userId as a string
-
 enum StatusCodes {
   OK = 200,
+  CREATED = 201,
   BAD_REQUEST = 400,
   UNAUTHORIZED = 401,
   NOT_FOUND = 404,
@@ -20,11 +19,38 @@ export async function getAllPosts(c: Context) {
 
   try {
     const allPosts = await prisma.post.findMany({
-      where: { published: true }, // Only fetch published posts
+      where: { published: true },
       include: {
-        User: {
-          select: { username: true, email: true }, // Only include necessary fields
+        author: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            displayName: true,
+            avatar: true,
+          },
         },
+        tags: {
+          include: {
+            tag: {
+              select: {
+                id: true,
+                name: true,
+                description: true,
+              },
+            },
+          },
+        },
+        _count: {
+          select: {
+            claps: true,
+            comments: true,
+            bookmarks: true,
+          },
+        },
+      },
+      orderBy: {
+        publishedAt: "desc",
       },
     });
 
@@ -46,27 +72,89 @@ export async function createPost(c: Context) {
     const parsedPost = postInputSchema.safeParse(body);
 
     if (!parsedPost.success) {
-      return c.json({ error: "Invalid post input" }, StatusCodes.BAD_REQUEST);
+      return c.json(
+        {
+          error: "Invalid post input",
+          details: parsedPost.error.errors,
+        },
+        StatusCodes.BAD_REQUEST
+      );
     }
 
-    const { title, description } = parsedPost.data;
-    const userId = c.get("userId"); // userId is a string (UUID)
+    const {
+      title,
+      description,
+      imageUrl,
+      published,
+      tagIds,
+    } = parsedPost.data;
+    const userId = c.get("userId");
+
+
+
+    const calculateReadTime = (htmlContent: string) => {
+      const wordCount = htmlContent
+        .replace(/<[^>]+>/g, '') // Strip HTML tags
+        .replace(/\[[0-9]+\]/g, '') // Remove citations
+        .replace(/https?:\/\/[^\s]+/g, '') // Remove URLs
+        .replace(/\s+/g, ' ') // Normalize spaces
+        .trim()
+        .split(/\s+/).length;
+      return Math.ceil(wordCount / 225); // 225 wpm
+    };
+
+    const readTime = calculateReadTime(description);
 
     const newPost = await prisma.post.create({
       data: {
         title,
         description,
+        imageUrl,
+        readTime,
+        published,
+        publishedAt: published ? new Date() : null,
         userId,
-        published: true, // Set to true by default; adjust if drafts are needed
+        ...(tagIds &&
+          tagIds.length > 0 && {
+            tags: {
+              create: tagIds.map((tagId: number) => ({
+                tagId,
+              })),
+            },
+          }),
       },
       include: {
-        User: {
-          select: { username: true, email: true },
+        author: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            displayName: true,
+            avatar: true,
+          },
+        },
+        tags: {
+          include: {
+            tag: {
+              select: {
+                id: true,
+                name: true,
+                description: true,
+              },
+            },
+          },
+        },
+        _count: {
+          select: {
+            claps: true,
+            comments: true,
+            bookmarks: true,
+          },
         },
       },
     });
 
-    return c.json({ data: newPost }, StatusCodes.OK);
+    return c.json({ data: newPost }, StatusCodes.CREATED);
   } catch (error) {
     console.error("Error creating post:", error);
     return c.json(
@@ -90,8 +178,63 @@ export async function getPostById(c: Context) {
         id: pid,
       },
       include: {
-        User: {
-          select: { username: true, email: true },
+        author: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            displayName: true,
+            avatar: true,
+            bio: true,
+          },
+        },
+        tags: {
+          include: {
+            tag: {
+              select: {
+                id: true,
+                name: true,
+                description: true,
+              },
+            },
+          },
+        },
+        comments: {
+          where: {
+            parentId: null, // Only get top-level comments
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                displayName: true,
+                avatar: true,
+              },
+            },
+            replies: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    username: true,
+                    displayName: true,
+                    avatar: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+        },
+        _count: {
+          select: {
+            claps: true,
+            comments: true,
+            bookmarks: true,
+          },
         },
       },
     });
@@ -100,7 +243,7 @@ export async function getPostById(c: Context) {
       return c.json({ error: "Post not found" }, StatusCodes.NOT_FOUND);
     }
 
-    // Optionally, restrict access to unpublished posts
+    // Restrict access to unpublished posts
     if (!post.published) {
       const userId = c.get("userId");
       if (post.userId !== userId) {
@@ -133,26 +276,42 @@ export async function updatePostById(c: Context) {
     const body = await c.req.json();
     const parsedPost = updatePostInputSchema.safeParse({ ...body, id });
     if (!parsedPost.success) {
-      return c.json({ error: "Invalid post input" }, StatusCodes.BAD_REQUEST);
+      return c.json(
+        {
+          error: "Invalid post input",
+          details: parsedPost.error.errors,
+        },
+        StatusCodes.BAD_REQUEST
+      );
     }
 
-    const { title, description } = parsedPost.data;
+    const { title, description, imageUrl, published, tagIds } = parsedPost.data;
     const userId = c.get("userId");
 
     // Check if the post exists and belongs to the user
-    const post = await prisma.post.findUnique({
+    const existingPost = await prisma.post.findUnique({
       where: {
         id,
         userId,
       },
     });
 
-    if (!post) {
+    if (!existingPost) {
       return c.json(
         { error: "Post not found or you are not authorized to update it" },
         StatusCodes.NOT_FOUND
       );
     }
+
+    // Calculate read time if description is being updated
+    let readTime = existingPost.readTime;
+    if (description && description !== existingPost.description) {
+      const wordCount = description.split(/\s+/).length;
+      readTime = Math.ceil(wordCount / 200);
+    }
+
+    // Determine if we need to update publishedAt
+    const shouldSetPublishedAt = published && !existingPost.published;
 
     const updatedPost = await prisma.post.update({
       where: {
@@ -160,12 +319,49 @@ export async function updatePostById(c: Context) {
         userId,
       },
       data: {
-        title,
-        description,
+        ...(title && { title }),
+        ...(description && { description, readTime }),
+        ...(imageUrl !== undefined && { imageUrl }),
+        ...(published !== undefined && {
+          published,
+          ...(shouldSetPublishedAt && { publishedAt: new Date() }),
+        }),
+        ...(tagIds && {
+          tags: {
+            deleteMany: {},
+            create: tagIds.map((tagId: number) => ({
+              tagId,
+            })),
+          },
+        }),
       },
       include: {
-        User: {
-          select: { username: true, email: true },
+        author: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            displayName: true,
+            avatar: true,
+          },
+        },
+        tags: {
+          include: {
+            tag: {
+              select: {
+                id: true,
+                name: true,
+                description: true,
+              },
+            },
+          },
+        },
+        _count: {
+          select: {
+            claps: true,
+            comments: true,
+            bookmarks: true,
+          },
         },
       },
     });
@@ -180,16 +376,12 @@ export async function updatePostById(c: Context) {
   }
 }
 
-
-
 export async function getPostOwner(c: Context) {
   const prisma = getPrisma(c.env.DATABASE_URL);
 
   try {
-    // Parse query parameters
     const { postId, userId } = c.req.query();
 
-    // Validate query parameters
     if (!postId || !userId) {
       return c.json(
         { error: "Missing postId or userId in query parameters" },
@@ -197,11 +389,17 @@ export async function getPostOwner(c: Context) {
       );
     }
 
-
+    const postIdNum = Number(postId);
+    if (isNaN(postIdNum) || postIdNum <= 0) {
+      return c.json(
+        { error: "Invalid postId format" },
+        StatusCodes.BAD_REQUEST
+      );
+    }
 
     const post = await prisma.post.findUnique({
       where: {
-        id: Number(postId),
+        id: postIdNum,
       },
       select: {
         userId: true,
@@ -219,6 +417,112 @@ export async function getPostOwner(c: Context) {
     console.error("Error in getPostOwner:", error);
     return c.json(
       { error: "Internal server error" },
+      StatusCodes.INTERNAL_SERVER_ERROR
+    );
+  }
+}
+
+export async function getUserPosts(c: Context) {
+  const prisma = getPrisma(c.env.DATABASE_URL);
+
+  try {
+    const userId = c.req.param("userId");
+    const currentUserId = c.get("userId");
+
+    if (!userId) {
+      return c.json({ error: "User ID is required" }, StatusCodes.BAD_REQUEST);
+    }
+
+    // If requesting own posts, include unpublished ones
+    const includeUnpublished = userId === currentUserId;
+
+    const userPosts = await prisma.post.findMany({
+      where: {
+        userId,
+        ...(includeUnpublished ? {} : { published: true }),
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            displayName: true,
+            avatar: true,
+          },
+        },
+        tags: {
+          include: {
+            tag: {
+              select: {
+                id: true,
+                name: true,
+                description: true,
+              },
+            },
+          },
+        },
+        _count: {
+          select: {
+            claps: true,
+            comments: true,
+            bookmarks: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    return c.json({ data: userPosts }, StatusCodes.OK);
+  } catch (error) {
+    console.error("Error fetching user posts:", error);
+    return c.json(
+      { error: "Failed to fetch user posts" },
+      StatusCodes.INTERNAL_SERVER_ERROR
+    );
+  }
+}
+
+export async function deletePostById(c: Context) {
+  const prisma = getPrisma(c.env.DATABASE_URL);
+
+  try {
+    const id = Number(c.req.param("id"));
+    if (isNaN(id) || id <= 0) {
+      return c.json({ error: "Invalid post ID" }, StatusCodes.BAD_REQUEST);
+    }
+
+    const userId = c.get("userId");
+
+    // Check if the post exists and belongs to the user
+    const post = await prisma.post.findUnique({
+      where: {
+        id,
+        userId,
+      },
+    });
+
+    if (!post) {
+      return c.json(
+        { error: "Post not found or you are not authorized to delete it" },
+        StatusCodes.NOT_FOUND
+      );
+    }
+
+    await prisma.post.delete({
+      where: {
+        id,
+        userId,
+      },
+    });
+
+    return c.json({ message: "Post deleted successfully" }, StatusCodes.OK);
+  } catch (error) {
+    console.error("Error deleting post by ID:", error);
+    return c.json(
+      { error: "Failed to delete post" },
       StatusCodes.INTERNAL_SERVER_ERROR
     );
   }
