@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { UserProfile, Post ,UpdateUserProfilePayload } from '../types'; 
+import { UserProfile, Post, UpdateUserProfilePayload } from '../types'; 
 import { api } from "../api"; 
-import { AboutSection } from '../component/Aboutsection'; 
+import { SavedPosts } from '../component/SavedPosts';
 import { ProfileHeader } from '../component/Profileheader'; 
 import { ProfileInfo } from '../component/Profileinfo';   
 import { NavigationTabs } from '../component/Navigationtabs'; 
@@ -13,19 +13,17 @@ import { Edit } from 'lucide-react';
 
 
 export const Profile: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'home' | 'about'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'bookmarks'>('home');
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingPosts, setIsLoadingPosts] = useState(false);
-  // const [isFollowLoading, setIsFollowLoading] = useState(false); // Kept if ProfileHeader uses it, but /me won't trigger follow
   const [error, setError] = useState<string | null>(null);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileSaveError, setProfileSaveError] = useState<string | null>(null);
 
-  // Load profile data for the current user (/me)
   useEffect(() => {
     const loadProfile = async () => {
       try {
@@ -41,10 +39,10 @@ export const Profile: React.FC = () => {
       }
     };
     loadProfile();
-  }, []); // Empty dependency array: Load profile once on mount
+  }, []);
 
-  // Load posts when tab changes to home or profile data is available
   useEffect(() => {
+    // Only fetch user's own posts when home tab is active
     if (activeTab === 'home' && profile?.username) {
       const loadPosts = async () => {
         try {
@@ -53,78 +51,17 @@ export const Profile: React.FC = () => {
           setPosts(postsData.data);
         } catch (err) {
           console.error('Failed to load posts:', err);
-          // Optionally set an error state for posts
         } finally {
           setIsLoadingPosts(false);
         }
       };
       loadPosts();
     }
-  }, [activeTab, profile]); // Depend on activeTab and profile
+  }, [activeTab, profile]);
 
-  // Follow toggle (relevant if ProfileHeader is generic, less so for /me page)
-  // const handleFollowToggle = async () => {
-  //   if (!profile || !profile.username) return; // Can't follow self, but for generic component
-  //   // For /me page, this button ideally wouldn't be shown or would be disabled.
-  //   // If this page could show other users, then this logic would be active.
-  //   // try {
-  //   //   setIsFollowLoading(true);
-  //   //   const result = await api.toggleFollow(profile.username);
-  //   //   setProfile(prev => prev ? {
-  //   //     ...prev,
-  //   //     isFollowing: result.isFollowing,
-  //   //     followersCount: prev.followersCount + (result.isFollowing ? 1 : -1)
-  //   //   } : null);
-  //   // } catch (err) {
-  //   //   console.error('Failed to toggle follow:', err);
-  //   // } finally {
-  //   //   setIsFollowLoading(false);
-  //   // }
-  // };
-
-  const handlePostClap = async (postId: string) => {
-    try {
-      await api.toggleClap(postId);
-      setPosts(prev => prev.map(post =>
-        post.id === postId
-          ? {
-            ...post,
-            isClapped: !post.isClapped,
-            clapCount: post.clapCount + (post.isClapped ? -1 : 1)
-          }
-          : post
-      ));
-    } catch (err) {
-      console.error('Failed to clap post:', err);
-    }
-  };
-
-  const handlePostBookmark = async (postId: string) => {
-    try {
-      await api.toggleBookmark(postId);
-      setPosts(prev => prev.map(post =>
-        post.id === postId
-          ? {
-            ...post,
-            isBookmarked: !post.isBookmarked,
-            bookmarkCount: post.bookmarkCount + (post.isBookmarked ? -1 : 1)
-          }
-          : post
-      ));
-    } catch (err) {
-      console.error('Failed to bookmark post:', err);
-    }
-  };
-
-  const handlePostShare = async (postId: string) => { // Removed async as clipboard API can be sync in some contexts
-    const url = `${window.location.origin}/post/${postId}`; // Assuming post routes
-    navigator.clipboard.writeText(url)
-      .then(() => console.log('URL copied to clipboard'))
-      .catch(err => console.error('Failed to copy URL:', err));
-  };
 
   const handleOpenEditModal = () => {
-    setProfileSaveError(null); // Clear previous errors
+    setProfileSaveError(null);
     setIsEditModalOpen(true);
   };
 
@@ -138,13 +75,12 @@ export const Profile: React.FC = () => {
     setProfileSaveError(null);
     try {
       const updatedProfile = await api.updateUserProfile(updatedData);
-      setProfile(updatedProfile); // Update local profile state with response from API
+      setProfile(updatedProfile);
       setIsEditModalOpen(false);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to save profile. Please try again.';
       console.error('Failed to save profile:', err);
       setProfileSaveError(errorMessage);
-      // Keep modal open if there's an error
     } finally {
       setIsSavingProfile(false);
     }
@@ -179,24 +115,15 @@ export const Profile: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-white font-sans">
-      <Header showAvatar={false} /> {/* Assuming Header component exists */}
+      <Header showAvatar={false} />
       
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
-        {/* Profile Section */}
         <div className="bg-white rounded-b-xl pt-16 md:pt-20 pb-6">
-          {/* Pass isOwnProfile={true} and onEdit={handleOpenEditModal} to ProfileHeader if it's designed to handle it */}
-          {/* For now, adding an edit button separately */}
           <div className="relative">
             <ProfileHeader
               profile={profile}
-               isFollowing={profile.isFollowing} // Not relevant for /me
-               //onFollowToggle={handleFollowToggle} // Not relevant for /me
-              // isLoading={isFollowLoading} // Not relevant for /me
-              //isOwnProfile={true} // Explicitly state it's own profile
-              //onEditProfile={handleOpenEditModal} // Pass edit handler
+              isFollowing={profile.isFollowing}
             />
-             {/* Edit button positioned within ProfileHeader's container or nearby */}
-             {/* If ProfileHeader doesn't support an edit button slot, place it here: */}
             <div className="absolute top-4 right-4 md:top-6 md:right-6">
                  <button
                     onClick={handleOpenEditModal}
@@ -209,20 +136,17 @@ export const Profile: React.FC = () => {
           </div>
           
           <div className="mt-6 px-4 md:px-6">
-            <ProfileInfo profile={profile} /> {/* Assuming ProfileInfo component exists */}
+            <ProfileInfo profile={profile} />
           </div>
         </div>
 
-        {/* Navigation */}
         <div className="bg-white sticky top-0 z-10 mt-6">
             <NavigationTabs
               activeTab={activeTab}
               onTabChange={setActiveTab}
             /> 
-
         </div>
 
-        {/* Content */}
         <div className="mt-6">
           {activeTab === 'home' && (
             <div className="space-y-8">
@@ -233,10 +157,7 @@ export const Profile: React.FC = () => {
               ) : posts.length > 0 ? (
                 <PostsList
                   posts={posts}
-                  onClap={handlePostClap}
-                  onBookmark={handlePostBookmark}
-                  onShare={handlePostShare}
-                  isLoading={false} // isLoadingPosts handles the list's loading state
+                  isLoading={false}
                 /> 
               ) : (
                 <div className="text-center py-12 bg-white rounded-xl shadow-sm">
@@ -250,9 +171,10 @@ export const Profile: React.FC = () => {
             </div>
           )}
 
-          {activeTab === 'about' && profile && (
-            <div className=" p-6 md:p-8">
-              <AboutSection profile={profile} />
+          {/* Render the SavedPosts component when the 'about' tab is active */}
+          {activeTab === 'bookmarks' && (
+            <div className="p-6 md:p-8">
+              <SavedPosts />
             </div>
           )}
         </div>

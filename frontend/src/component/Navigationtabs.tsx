@@ -1,6 +1,6 @@
 export const NavigationTabs: React.FC<{
-  activeTab: 'home' | 'about';
-  onTabChange: (tab: 'home' | 'about') => void;
+  activeTab: 'home' | 'bookmarks';
+  onTabChange: (tab: 'home' | 'bookmarks') => void;
 }> = ({ activeTab, onTabChange }) => (
   <div className="sticky top-0 bg-white z-10 ">
     <nav className="flex space-x-6 max-w-2xl mx-auto">
@@ -15,14 +15,14 @@ export const NavigationTabs: React.FC<{
         Home
       </button>
       <button
-        onClick={() => onTabChange('about')}
+        onClick={() => onTabChange('bookmarks')}
         className={`py-3 px-2 border-b-2 font-sans text-sm font-medium transition-colors ${
-          activeTab === 'about'
+          activeTab === 'bookmarks'
             ? 'border-green-500 text-gray-900'
             : 'border-transparent text-gray-500 hover:text-green-500'
         }`}
       >
-        About
+        Saved
       </button>
     </nav>
   </div>
