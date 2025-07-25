@@ -3,16 +3,13 @@ import { Link } from "react-router-dom";
 import { Heart, MessageCircle, Bookmark, Share2 } from "lucide-react";
 import Avatar from "./Avatar";
 import parser from "html-react-parser";
-import { Post, BlogProps } from "../types";
+import { BlogProps } from "../types";
 import { api } from "../api";
 
 export function BlogCard({
   post,
   showAuthorInfo = true,
   showEngagementStats = true,
-  onClap,
-  onBookmark,
-  onShare,
 }: BlogProps): JSX.Element {
   const [clapCount, setClapCount] = useState(post.clapCount || 0);
   const [isClapped, setIsClapped] = useState(post.isClapped || false);
@@ -32,12 +29,9 @@ export function BlogCard({
       return post.tags[0];
     }
     const title = post.title.toLowerCase();
-    if (title.includes("web") || title.includes("javascript") || title.includes("react"))
-      return "Web Development";
-    if (title.includes("design") || title.includes("ui") || title.includes("ux"))
-      return "Design";
-    if (title.includes("tech") || title.includes("code") || title.includes("programming"))
-      return "Technology";
+    if (title.includes("web") || title.includes("javascript") || title.includes("react")) return "Web Development";
+    if (title.includes("design") || title.includes("ui") || title.includes("ux")) return "Design";
+    if (title.includes("tech") || title.includes("code") || title.includes("programming")) return "Technology";
     return "Article";
   };
 
@@ -50,108 +44,62 @@ export function BlogCard({
     action();
   };
 
-  // const handleClapClick = async () => {
-  //   if (isLoading.clap) return;
-  //   setIsLoading((prev) => ({ ...prev, clap: true }));
-  //   try {
-  //     if (onClap) {
-  //       await onClap(post.id);
-  //     } else {
-  //       await api.toggleClap(post.id);
-  //       const updatedPost = await api.getPostById(post.id);
-  //       setIsClapped(updatedPost.isClapped);
-  //       setClapCount(updatedPost.clapCount);
-  //     }
-  //   } catch (error) {
-  //     console.error("Error toggling clap:", error);
-  //   } finally {
-  //     setIsLoading((prev) => ({ ...prev, clap: false }));
-  //   }
-  // };
-
   const handleClapClick = async () => {
     if (isLoading.clap) return;
-    setIsLoading((prev) => ({ ...prev, clap: true }));
+
+    // Optimistic UI update
+    const originalClapCount = clapCount;
+    const originalIsClapped = isClapped;
+    setClapCount(prev => (originalIsClapped ? prev - 1 : prev + 1));
+    setIsClapped(prev => !prev);
+    setIsLoading(prev => ({ ...prev, clap: true }));
+
     try {
-      if (onClap) {
-        await onClap(post.id);
-        // Add immediate state update for better UX
-        setIsClapped(!isClapped);
-        setClapCount(prev => isClapped ? prev - 1 : prev + 1);
-      } else {
-        await api.toggleClap(post.id);
-        const updatedPost = await api.getPostById(post.id);
-        setIsClapped(updatedPost.isClapped);
-        setClapCount(updatedPost.clapCount);
-      }
+      // No need to refetch; the API now returns the correct state.
+      // We can trust our optimistic update for the UI.
+      await api.toggleClap(post.id);
     } catch (error) {
       console.error("Error toggling clap:", error);
-      // Revert optimistic update on error
-      if (onClap) {
-        setIsClapped(isClapped);
-        setClapCount(prev => isClapped ? prev + 1 : prev - 1);
-      }
+      // Revert UI on error
+      setClapCount(originalClapCount);
+      setIsClapped(originalIsClapped);
     } finally {
-      setIsLoading((prev) => ({ ...prev, clap: false }));
+      setIsLoading(prev => ({ ...prev, clap: false }));
     }
   };
 
-  // const handleBookmarkClick = async () => {
-  //   if (isLoading.bookmark) return;
-  //   setIsLoading((prev) => ({ ...prev, bookmark: true }));
-  //   try {
-  //     if (onBookmark) {
-  //       await onBookmark(post.id);
-  //     } else {
-  //       await api.toggleBookmark(post.id);
-  //       const updatedPost = await api.getPostById(post.id);
-  //       setIsBookmarked(updatedPost.isBookmarked);
-  //     }
-  //   } catch (error) {
-  //     console.error("Error toggling bookmark:", error);
-  //   } finally {
-  //     setIsLoading((prev) => ({ ...prev, bookmark: false }));
-  //   }
-  // };
-
+  /**
+   * REFACTORED: Implements optimistic UI updates.
+   */
   const handleBookmarkClick = async () => {
     if (isLoading.bookmark) return;
-    setIsLoading((prev) => ({ ...prev, bookmark: true }));
+
+    // Optimistic UI update
+    const originalIsBookmarked = isBookmarked;
+    setIsBookmarked(prev => !prev);
+    setIsLoading(prev => ({ ...prev, bookmark: true }));
+
     try {
-      if (onBookmark) {
-        await onBookmark(post.id);
-        // Add immediate state update for better UX
-        setIsBookmarked(!isBookmarked);
-      } else {
-        await api.toggleBookmark(post.id);
-        const updatedPost = await api.getPostById(post.id);
-        setIsBookmarked(updatedPost.isBookmarked);
-      }
+      await api.toggleBookmark(post.id);
     } catch (error) {
       console.error("Error toggling bookmark:", error);
-      // Revert optimistic update on error
-      if (onBookmark) {
-        setIsBookmarked(isBookmarked);
-      }
+      // Revert UI on error
+      setIsBookmarked(originalIsBookmarked);
     } finally {
-      setIsLoading((prev) => ({ ...prev, bookmark: false }));
+      setIsLoading(prev => ({ ...prev, bookmark: false }));
     }
   };
 
   const handleShareClick = () => {
-    if (onShare) {
-      onShare(post.id);
+    const url = `${window.location.origin}/blog/${post.id}`;
+    if (navigator.share) {
+      navigator.share({
+        title: post.title,
+        text: post.description.replace(/<[^>]+>/g, "").substring(0, 100) + "...",
+        url,
+      });
     } else {
-      const url = `${window.location.origin}/blog/${post.id}`;
-      if (navigator.share) {
-        navigator.share({
-          title: post.title,
-          text: post.description.replace(/<[^>]+>/g, "").substring(0, 100) + "...",
-          url,
-        });
-      } else {
-        navigator.clipboard.writeText(url);
-      }
+      navigator.clipboard.writeText(url);
     }
   };
 
@@ -193,20 +141,15 @@ export function BlogCard({
               </div>
               {showEngagementStats && (
                 <div className="flex items-center gap-3 text-gray-500">
-
                   <button
                     onClick={(e) => handleEngagementClick(e, handleClapClick)}
-                    className={`flex items-center gap-1 hover:text-green-500 transition-colors ${isClapped ? "text-green-500" : "text-gray-500"
-                      } ${isLoading.clap ? "opacity-50 cursor-not-allowed" : ""}`}
+                    className={`flex items-center gap-1 hover:text-green-500 transition-colors ${isClapped ? "text-green-500" : "text-gray-500"} ${isLoading.clap ? "opacity-50 cursor-not-allowed" : ""}`}
                     title="Clap for this article"
                     disabled={isLoading.clap}
                   >
                     <Heart className={`h-4 w-4 ${isClapped ? "fill-green-500 text-green-500" : ""}`} />
-                    {/* <span className="text-xs font-sans">{clapCount > 0 ? clapCount : ""}</span> */}
                     <span className="text-xs font-sans">{clapCount > 0 ? clapCount : ""}</span>
                   </button>
-
-
                   <Link to={`/blog/${post.id}#comments`} onClick={(e) => e.stopPropagation()}>
                     <button className="flex items-center gap-1 hover:text-green-500 transition-colors" title="Responses">
                       <MessageCircle className="h-4 w-4" />
@@ -217,14 +160,12 @@ export function BlogCard({
                   </Link>
                   <button
                     onClick={(e) => handleEngagementClick(e, handleBookmarkClick)}
-                    className={`hover:text-green-500 transition-colors ${isBookmarked ? "text-green-500" : "text-gray-500"
-                      } ${isLoading.bookmark ? "opacity-50 cursor-not-allowed" : ""}`}
+                    className={`hover:text-green-500 transition-colors ${isBookmarked ? "text-green-500" : "text-gray-500"} ${isLoading.bookmark ? "opacity-50 cursor-not-allowed" : ""}`}
                     title="Save article"
                     disabled={isLoading.bookmark}
                   >
                     <Bookmark className={`h-4 w-4 ${isBookmarked ? "fill-green-500 text-green-500" : ""}`} />
                   </button>
-
                   <button
                     onClick={(e) => handleEngagementClick(e, handleShareClick)}
                     className="hover:text-green-500 transition-colors"
@@ -246,27 +187,6 @@ export function BlogCard({
           </div>
         </div>
       </article>
-    </Link>
-  );
-}
-
-export function SimpleBlogCard({ post }: { post: Post }): JSX.Element {
-  return <BlogCard post={post} showEngagementStats={false} showAuthorInfo={true} />;
-}
-
-export function CompactBlogCard({ post }: { post: Post }): JSX.Element {
-  return (
-    <Link to={`/blog/${post.id}`}>
-      <div className="group cursor-pointer py-3 hover:bg-gray-50 transition-colors rounded-md">
-        <h3 className="text-sm font-sans font-medium text-gray-900 group-hover:text-green-500 line-clamp-2 mb-1 tracking-wide">
-          {post.title}
-        </h3>
-        <div className="flex items-center gap-2 text-xs text-gray-500 font-sans">
-          <span>{post.author.username}</span>
-          <span>·</span>
-          <span>{post.readTime} min read</span>
-        </div>
-      </div>
     </Link>
   );
 }

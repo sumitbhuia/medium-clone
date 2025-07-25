@@ -19,13 +19,27 @@ export interface UserProfile {
 
 export interface User {
   username: string;
-  displayName: string;
-  avatar: string;
-  bio: string;
+  displayName?: string;
+  avatar?: string;
+  bio?: string;
+}
+
+export interface Tag {
+  id: number;
+  name: string;
+  description: string;
+}
+
+
+export interface PostTag {
+  id: number;
+  postId: number;
+  tagId: number;
+  tag: Tag;
 }
 
 export interface Post {
-  id: string;
+  id: number; 
   title: string;
   description: string;
   createdAt: string;
@@ -36,7 +50,8 @@ export interface Post {
   bookmarkCount: number;
   isClapped: boolean;
   isBookmarked: boolean;
-  tags: string[];
+  // tags: PostTag[]; 
+  tags:string[];
   imageUrl?: string;
   author: User;
 }
@@ -47,11 +62,41 @@ export interface BlogProps {
   showEngagementStats?: boolean;
   clapCount?: number;
   responseCount?: number;
-  onClap?: (postId: string) => Promise<void>;
-  onBookmark?: (postId: string) => Promise<void>;
-  onShare?: (postId: string) => Promise<void>;
+  onClap?: (postId: number) => Promise<void>; 
+  onBookmark?: (postId: number) => Promise<void>;
+  onShare?: (postId: number) => Promise<void>;
 }
 
+
+export interface Comment {
+  id: number;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+  parentId?: number;
+  user: User;
+  repliesCount: number;
+  replies?: Comment[];
+}
+
+export interface CommentSectionProps {
+  postId: number;
+  currentUser: User
+}
+
+export interface CommentResponse {
+  data: Comment[];
+  pagination: {
+    page: number;
+    limit: number;
+    hasMore: boolean;
+  };
+}
+
+export interface CreateCommentPayload {
+  content: string;
+  parentId?: number;
+}
 
 // Action button configuration for Header 
 export interface ActionButton {
