@@ -1,11 +1,23 @@
 import { useNavigate, useParams } from "react-router-dom";
-import { useEffect, useState } from "react";
-import Tiptap from "../component/Tiptap";
+import { useEffect, useState, lazy, Suspense } from "react";
 import { Editor } from '@tiptap/core';
-import { Post } from "../types"
+import { Post } from "../types";
 import { api } from "../api";
 import { ThemeSpinner } from "../component/Spinner";
 import { Header, HeaderPresets } from "../component/Header";
+
+// 1. Dynamically import the Tiptap component using React.lazy
+const Tiptap = lazy(() => import("../component/Tiptap"));
+
+// 2. Create a simple loading component to show while the editor is loading
+const EditorPlaceholder = () => (
+  <div className="w-full min-h-[400px] pt-4">
+    <div className="prose prose-sm sm:prose lg:prose-lg xl:prose-2xl mx-auto focus:outline-none">
+      <p className="text-gray-400">Loading Editor...</p>
+    </div>
+  </div>
+);
+
 
 export function Edit(): JSX.Element {
   const [blog, setBlog] = useState<Post | null>(null);
@@ -15,33 +27,26 @@ export function Edit(): JSX.Element {
   const [title, setTitle] = useState("");
   const [editor, setEditor] = useState<Editor | null>(null);
 
-
-  const { id } = useParams<{ id: string }>();
+  const { id } = useParams<{ id: any }>();
   const navigate = useNavigate();
-
-
 
   useEffect(() => {
     const fetchSessionAndBlog = async () => {
       try {
-
         if (!id) {
           setError("Invalid blog id");
           setIsLoading(false);
           return;
         }
         const result = await api.getPostById(id);
-
         setBlog(result);
         setTitle(result.title);
-
       } catch (err: any) {
         setError(err.message || "Failed to load blog post. Please try again.");
       } finally {
         setIsLoading(false);
       }
     };
-
     fetchSessionAndBlog();
   }, [id, navigate]);
 
@@ -50,31 +55,24 @@ export function Edit(): JSX.Element {
       setError("Editor is not initialized. Please try again.");
       return;
     }
-
     if (!title.trim()) {
       setError("Title cannot be empty.");
       return;
     }
-
     const description = editor.getHTML();
     if (!description || description === "<p></p>") {
       setError("Description cannot be empty.");
       return;
     }
-
     try {
       setError("");
       setIsUpdating(true);
-
       if (!id) {
         setError("Invalid blog id");
         setIsLoading(false);
         return;
       }
-
-      const result = await api.editPostById(id, title, description)
-
-      // Navigate to the updated blog post
+      const result = await api.editPostById(id, title, description);
       navigate(`/blog/${result.id}`);
     } catch (err: any) {
       setError(err.message || "Failed to update blog post. Please try again.");
@@ -103,7 +101,6 @@ export function Edit(): JSX.Element {
       </div>
     );
   }
-
 
   return (
     <div className="min-h-screen px-4 sm:px-6 lg:px-8 py-3 overscroll-contain">
@@ -135,7 +132,10 @@ export function Edit(): JSX.Element {
                 rows={2}
               />
               <div className="w-full min-h-[400px] max-h-[600px] overflow-auto">
-                <Tiptap setEditor={setEditor} initialContent={blog.description || ""} />
+                {/* 3. Wrap the Tiptap component in Suspense */}
+                <Suspense fallback={<EditorPlaceholder />}>
+                  <Tiptap setEditor={setEditor} initialContent={blog.description || ""} />
+                </Suspense>
               </div>
             </form>
           </div>
