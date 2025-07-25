@@ -1,8 +1,8 @@
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import * as Icons from "../Icons";
-import mediumText from '../../public/mediumText.png';
-import medium from '../../public/medium.png';
+import mediumText from '../assets/mediumText.png';
+import medium from '../assets/medium.png';
 import { supabase } from "../supabaseClient";
 import { UserAvatar } from "./Avatar";
 import { ActionButton, HeaderConfig, IconButton, } from "../types";
@@ -69,7 +69,7 @@ export function Header({
 
 
         if (autoEditButton && postId) {
-          const data = await api.canEditPost(postId);
+          const data = await api.canEditPost(Number(postId));
           setCanEdit(Boolean(data));
         }
       } catch (error) {
