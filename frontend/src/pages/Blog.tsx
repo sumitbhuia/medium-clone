@@ -1,6 +1,5 @@
 import { useNavigate, useParams } from "react-router-dom";
 import { Header, HeaderPresets } from "../component/Header";
-import { CommentSection } from "../component/CommentSection";
 import { UserAvatar } from "../component/Avatar";
 import { useEffect, useState } from "react";
 import parse from 'html-react-parser';
