@@ -1,5 +1,6 @@
 import { useNavigate, useParams } from "react-router-dom";
 import { Header, HeaderPresets } from "../component/Header";
+import { CommentSection } from "../component/CommentSection";
 import { UserAvatar } from "../component/Avatar";
 import { useEffect, useState } from "react";
 import parse from 'html-react-parser';
@@ -26,7 +27,7 @@ export const Blog = () => {
           return;
         }
 
-        const result = await api.getPostById(id);
+        const result = await api.getPostById(Number(id));
         setBio(result.author.bio || "");
         setBlog(result);
 
@@ -150,6 +151,12 @@ export const Blog = () => {
           </div>
         </div>
       </div>
+      {/* Comment Section */}
+      {/* <CommentSection 
+        postId={blog.id}
+        currentUser={blog.author}
+      /> */}
     </div>
+    // </div>
   );
 };

@@ -321,7 +321,7 @@
             transform: translateX(0);
             opacity: 1;
           }
-        }
+}
         
         @keyframes fade-in {
           from {
@@ -341,3 +341,4 @@
         .animate-fade-in {
           animation: fade-in 0.5s ease-out;
         }
+      

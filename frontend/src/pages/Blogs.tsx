@@ -14,50 +14,6 @@ export const Blogs = () => {
 
   const navigate = useNavigate();
 
-  const handleClap = async (postId: string) => {
-    try {
-      await api.toggleClap(postId);
-      setPosts(prev => prev.map(post =>
-        post.id === postId
-          ? {
-            ...post,
-            isClapped: !post.isClapped,
-            clapCount: post.clapCount + (post.isClapped ? -1 : 1)
-          }
-          : post
-      ));
-    } catch (err) {
-      console.error('Failed to clap post:', err);
-    }
-  };
-
-  const handleBookmark = async (postId: string) => {
-    try {
-      await api.toggleBookmark(postId);
-      setPosts(prev => prev.map(post =>
-        post.id === postId
-          ? {
-            ...post,
-            isBookmarked: !post.isBookmarked,
-            bookmarkCount: post.bookmarkCount + (post.isBookmarked ? -1 : 1)
-          }
-          : post
-      ));
-    } catch (err) {
-      console.error('Failed to bookmark post:', err);
-    }
-  };
-
-  const handleShare = async (postId: string) => { // Removed async as clipboard API can be sync in some contexts
-    const url = `${window.location.origin}/post/${postId}`; // Assuming post routes
-    navigator.clipboard.writeText(url)
-      .then(() => console.log('URL copied to clipboard'))
-      .catch(err => console.error('Failed to copy URL:', err));
-  };
-
-
-
-
   useEffect(() => {
     const fetchSessionAndPosts = async () => {
       try {
@@ -69,21 +25,21 @@ export const Blogs = () => {
           title: post.title,
           description: post.description,
           createdAt: post.createdAt,
-          userId: post.userId,
-          author: {
-            username: post.author?.username || "Unknown",
-            displayName: post.author?.displayName || "Unknown",
-            avatar: post.author?.avatar || "",
-            bio: post.author?.bio || "",
-          },
           readTime: post.readTime ?? 0,
-          clapCount: post.clapCount ?? 0,
-          responseCount: post.responseCount ?? 0,
-          bookmarkCount: post.bookmarkCount ?? 0,
+          clapCount: post._count.claps ?? 0,
+          responseCount: post._count.comments ?? 0,
+          bookmarkCount: post._count.bookmarks ?? 0,
+          // #TODO : Work on logic if current user clap this post
           isClapped: post.isClapped ?? false,
           isBookmarked: post.isBookmarked ?? false,
-          tags: post.tags ?? [],
+          tags: post.tags.map((pt:any) => pt.tag.name),
           imageUrl: post.imageUrl ?? "",
+          author: {
+            username: post.author?.username || "user",
+            displayName: post.author?.displayName || "user",
+            avatar: post.author?.avatar || "",
+            bio: post.author?.bio || "", // Used in blog page
+          },
         }));
 
         setPosts(formattedPosts);
@@ -128,12 +84,7 @@ export const Blogs = () => {
               key={post.id}
               post={post}
               showEngagementStats={true}
-              onClap={() => handleClap(post.id)}
-              onBookmark={() => handleBookmark(post.id)}
-              onShare={() => handleShare(post.id)}
             />
-
-
           ))}
         </div>
       </div>

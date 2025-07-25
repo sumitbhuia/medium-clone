@@ -3,11 +3,8 @@ import { BlogCard } from "./BlogCard";
 
 export const PostsList: React.FC<{
   posts: Post[];
-  onClap: (postId: string) => Promise<void>;
-  onBookmark: (postId: string) => Promise<void>;
-  onShare: (postId: string) => Promise<void>;
   isLoading?: boolean;
-}> = ({ posts, onClap, onBookmark, onShare, isLoading }) => {
+}> = ({ posts,isLoading }) => {
   if (isLoading) {
     return (
       <div className="max-w-2xl mx-auto">
@@ -40,9 +37,6 @@ export const PostsList: React.FC<{
           post={post}
           showAuthorInfo={false}
           showEngagementStats={true}
-          onClap={() => onClap(post.id)}
-          onBookmark={() => onBookmark(post.id)}
-          onShare={() => onShare(post.id)}
         />
       ))}
     </div>
