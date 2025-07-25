@@ -14,6 +14,288 @@ enum StatusCodes {
   INTERNAL_SERVER_ERROR = 500,
 }
 
+import { TagGen } from "../lib/tagGen";
+
+
+export async function createPost(c: Context) {
+  const prisma = getPrisma(c.env.DATABASE_URL);
+  const aiTagService = new TagGen(c.env.GEMINI_API_KEY);
+
+  try {
+    const body = await c.req.json();
+    const parsedPost = postInputSchema.safeParse(body);
+
+    if (!parsedPost.success) {
+      return c.json(
+        {
+          error: "Invalid post input",
+          details: parsedPost.error.errors,
+        },
+        StatusCodes.BAD_REQUEST
+      );
+    }
+
+    const {
+      title,
+      description,
+      imageUrl,
+      published,
+      tagIds,
+    } = parsedPost.data;
+    const userId = c.get("userId");
+
+    console.log("tags -> ",tagIds);
+
+    const calculateReadTime = (htmlContent: string) => {
+      const wordCount = htmlContent
+        .replace(/<[^>]+>/g, '') // Strip HTML tags
+        .replace(/\[[0-9]+\]/g, '') // Remove citations
+        .replace(/https?:\/\/[^\s]+/g, '') // Remove URLs
+        .replace(/\s+/g, ' ') // Normalize spaces
+        .trim()
+        .split(/\s+/).length;
+      return Math.ceil(wordCount / 225); // 225 wpm
+    };
+
+    const readTime = calculateReadTime(description);
+
+    // Generate AI tags if no manual tags provided
+    let finalTagIds = tagIds;
+    let aiGeneratedTags: string[] = [];
+    
+    if (!tagIds || tagIds.length === 0) {
+      const tagResult = await aiTagService.generateTags(description, title);
+
+      console.log("tagResult",tagResult);
+      
+      if (tagResult.success) {
+        aiGeneratedTags = tagResult.tags;
+        
+        // Create or find tags in database
+        const tagPromises = tagResult.tags.map(async (tagName:string) => {
+          return await prisma.tag.upsert({
+            where: { name: tagName },
+            update: {},
+            create: {
+              name: tagName,
+              description: `Auto-generated tag: ${tagName}`,
+            },
+          });
+        });
+        
+        const createdTags = await Promise.all(tagPromises);
+        finalTagIds = createdTags.map(tag => tag.id);
+        console.log("createdTage",createdTags);
+      } else {
+        console.warn('AI tag generation failed:', tagResult.error);
+      }
+    }
+
+    const newPost = await prisma.post.create({
+      data: {
+        title,
+        description,
+        imageUrl,
+        readTime,
+        published,
+        publishedAt: published ? new Date() : null,
+        userId,
+        ...(finalTagIds &&
+          finalTagIds.length > 0 && {
+            tags: {
+              create: finalTagIds.map((tagId: number) => ({
+                tagId,
+              })),
+            },
+          }),
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            displayName: true,
+            avatar: true,
+          },
+        },
+        tags: {
+          include: {
+            tag: {
+              select: {
+                id: true,
+                name: true,
+                description: true,
+              },
+            },
+          },
+        },
+        _count: {
+          select: {
+            claps: true,
+            comments: true,
+            bookmarks: true,
+          },
+        },
+      },
+    });
+
+    return c.json({ 
+      data: newPost,
+      ...(aiGeneratedTags.length > 0 && { aiGeneratedTags })
+    }, StatusCodes.CREATED);
+  } catch (error) {
+    console.error("Error creating post:", error);
+    return c.json(
+      { error: "Failed to create post" },
+      StatusCodes.INTERNAL_SERVER_ERROR
+    );
+  }
+}
+
+export async function updatePostById(c: Context) {
+  const prisma = getPrisma(c.env.DATABASE_URL);
+  const aiTagService = new TagGen(c.env.GEMINI_API_KEY);
+
+  try {
+    const id = Number(c.req.param("id"));
+    if (isNaN(id) || id <= 0) {
+      return c.json({ error: "Invalid post ID" }, StatusCodes.BAD_REQUEST);
+    }
+
+    const body = await c.req.json();
+    const parsedPost = updatePostInputSchema.safeParse({ ...body, id });
+    if (!parsedPost.success) {
+      return c.json(
+        {
+          error: "Invalid post input",
+          details: parsedPost.error.errors,
+        },
+        StatusCodes.BAD_REQUEST
+      );
+    }
+
+    const { title, description, imageUrl, published, tagIds } = parsedPost.data;
+    const userId = c.get("userId");
+
+    // Check if the post exists and belongs to the user
+    const existingPost = await prisma.post.findUnique({
+      where: {
+        id,
+        userId,
+      },
+    });
+
+    if (!existingPost) {
+      return c.json(
+        { error: "Post not found or you are not authorized to update it" },
+        StatusCodes.NOT_FOUND
+      );
+    }
+
+    // Calculate read time if description is being updated
+    let readTime = existingPost.readTime;
+    if (description && description !== existingPost.description) {
+      const wordCount = description.split(/\s+/).length;
+      readTime = Math.ceil(wordCount / 200);
+    }
+
+    // Determine if we need to update publishedAt
+    const shouldSetPublishedAt = published && !existingPost.published;
+
+    // Generate AI tags if content changed and no manual tags provided
+    let finalTagIds = tagIds;
+    let aiGeneratedTags: string[] = [];
+    
+    if (description && description !== existingPost.description && (!tagIds || tagIds.length === 0)) {
+      const tagResult = await aiTagService.generateTags(description, title || existingPost.title);
+      
+      if (tagResult.success) {
+        aiGeneratedTags = tagResult.tags;
+        
+        // Create or find tags in database
+        const tagPromises = tagResult.tags.map(async (tagName) => {
+          return await prisma.tag.upsert({
+            where: { name: tagName },
+            update: {},
+            create: {
+              name: tagName,
+              description: `Auto-generated tag: ${tagName}`,
+            },
+          });
+        });
+        
+        const createdTags = await Promise.all(tagPromises);
+        finalTagIds = createdTags.map(tag => tag.id);
+      }
+    }
+
+    const updatedPost = await prisma.post.update({
+      where: {
+        id,
+        userId,
+      },
+      data: {
+        ...(title && { title }),
+        ...(description && { description, readTime }),
+        ...(imageUrl !== undefined && { imageUrl }),
+        ...(published !== undefined && {
+          published,
+          ...(shouldSetPublishedAt && { publishedAt: new Date() }),
+        }),
+        ...(finalTagIds && {
+          tags: {
+            deleteMany: {},
+            create: finalTagIds.map((tagId: number) => ({
+              tagId,
+            })),
+          },
+        }),
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            displayName: true,
+            avatar: true,
+          },
+        },
+        tags: {
+          include: {
+            tag: {
+              select: {
+                id: true,
+                name: true,
+                description: true,
+              },
+            },
+          },
+        },
+        _count: {
+          select: {
+            claps: true,
+            comments: true,
+            bookmarks: true,
+          },
+        },
+      },
+    });
+
+    return c.json({ 
+      data: updatedPost,
+      ...(aiGeneratedTags.length > 0 && { aiGeneratedTags })
+    }, StatusCodes.OK);
+  } catch (error) {
+    console.error("Error updating post by ID:", error);
+    return c.json(
+      { error: "Failed to update post" },
+      StatusCodes.INTERNAL_SERVER_ERROR
+    );
+  }
+}
+
 export async function getAllPosts(c: Context) {
   const prisma = getPrisma(c.env.DATABASE_URL);
 
@@ -64,105 +346,105 @@ export async function getAllPosts(c: Context) {
   }
 }
 
-export async function createPost(c: Context) {
-  const prisma = getPrisma(c.env.DATABASE_URL);
+// export async function createPost(c: Context) {
+//   const prisma = getPrisma(c.env.DATABASE_URL);
 
-  try {
-    const body = await c.req.json();
-    const parsedPost = postInputSchema.safeParse(body);
+//   try {
+//     const body = await c.req.json();
+//     const parsedPost = postInputSchema.safeParse(body);
 
-    if (!parsedPost.success) {
-      return c.json(
-        {
-          error: "Invalid post input",
-          details: parsedPost.error.errors,
-        },
-        StatusCodes.BAD_REQUEST
-      );
-    }
+//     if (!parsedPost.success) {
+//       return c.json(
+//         {
+//           error: "Invalid post input",
+//           details: parsedPost.error.errors,
+//         },
+//         StatusCodes.BAD_REQUEST
+//       );
+//     }
 
-    const {
-      title,
-      description,
-      imageUrl,
-      published,
-      tagIds,
-    } = parsedPost.data;
-    const userId = c.get("userId");
+//     const {
+//       title,
+//       description,
+//       imageUrl,
+//       published,
+//       tagIds,
+//     } = parsedPost.data;
+//     const userId = c.get("userId");
 
 
 
-    const calculateReadTime = (htmlContent: string) => {
-      const wordCount = htmlContent
-        .replace(/<[^>]+>/g, '') // Strip HTML tags
-        .replace(/\[[0-9]+\]/g, '') // Remove citations
-        .replace(/https?:\/\/[^\s]+/g, '') // Remove URLs
-        .replace(/\s+/g, ' ') // Normalize spaces
-        .trim()
-        .split(/\s+/).length;
-      return Math.ceil(wordCount / 225); // 225 wpm
-    };
+//     const calculateReadTime = (htmlContent: string) => {
+//       const wordCount = htmlContent
+//         .replace(/<[^>]+>/g, '') // Strip HTML tags
+//         .replace(/\[[0-9]+\]/g, '') // Remove citations
+//         .replace(/https?:\/\/[^\s]+/g, '') // Remove URLs
+//         .replace(/\s+/g, ' ') // Normalize spaces
+//         .trim()
+//         .split(/\s+/).length;
+//       return Math.ceil(wordCount / 225); // 225 wpm
+//     };
 
-    const readTime = calculateReadTime(description);
+//     const readTime = calculateReadTime(description);
 
-    const newPost = await prisma.post.create({
-      data: {
-        title,
-        description,
-        imageUrl,
-        readTime,
-        published,
-        publishedAt: published ? new Date() : null,
-        userId,
-        ...(tagIds &&
-          tagIds.length > 0 && {
-            tags: {
-              create: tagIds.map((tagId: number) => ({
-                tagId,
-              })),
-            },
-          }),
-      },
-      include: {
-        author: {
-          select: {
-            id: true,
-            username: true,
-            email: true,
-            displayName: true,
-            avatar: true,
-          },
-        },
-        tags: {
-          include: {
-            tag: {
-              select: {
-                id: true,
-                name: true,
-                description: true,
-              },
-            },
-          },
-        },
-        _count: {
-          select: {
-            claps: true,
-            comments: true,
-            bookmarks: true,
-          },
-        },
-      },
-    });
+//     const newPost = await prisma.post.create({
+//       data: {
+//         title,
+//         description,
+//         imageUrl,
+//         readTime,
+//         published,
+//         publishedAt: published ? new Date() : null,
+//         userId,
+//         ...(tagIds &&
+//           tagIds.length > 0 && {
+//             tags: {
+//               create: tagIds.map((tagId: number) => ({
+//                 tagId,
+//               })),
+//             },
+//           }),
+//       },
+//       include: {
+//         author: {
+//           select: {
+//             id: true,
+//             username: true,
+//             email: true,
+//             displayName: true,
+//             avatar: true,
+//           },
+//         },
+//         tags: {
+//           include: {
+//             tag: {
+//               select: {
+//                 id: true,
+//                 name: true,
+//                 description: true,
+//               },
+//             },
+//           },
+//         },
+//         _count: {
+//           select: {
+//             claps: true,
+//             comments: true,
+//             bookmarks: true,
+//           },
+//         },
+//       },
+//     });
 
-    return c.json({ data: newPost }, StatusCodes.CREATED);
-  } catch (error) {
-    console.error("Error creating post:", error);
-    return c.json(
-      { error: "Failed to create post" },
-      StatusCodes.INTERNAL_SERVER_ERROR
-    );
-  }
-}
+//     return c.json({ data: newPost }, StatusCodes.CREATED);
+//   } catch (error) {
+//     console.error("Error creating post:", error);
+//     return c.json(
+//       { error: "Failed to create post" },
+//       StatusCodes.INTERNAL_SERVER_ERROR
+//     );
+//   }
+// }
 
 export async function getPostById(c: Context) {
   const prisma = getPrisma(c.env.DATABASE_URL);
@@ -264,117 +546,117 @@ export async function getPostById(c: Context) {
   }
 }
 
-export async function updatePostById(c: Context) {
-  const prisma = getPrisma(c.env.DATABASE_URL);
+// export async function updatePostById(c: Context) {
+//   const prisma = getPrisma(c.env.DATABASE_URL);
 
-  try {
-    const id = Number(c.req.param("id"));
-    if (isNaN(id) || id <= 0) {
-      return c.json({ error: "Invalid post ID" }, StatusCodes.BAD_REQUEST);
-    }
+//   try {
+//     const id = Number(c.req.param("id"));
+//     if (isNaN(id) || id <= 0) {
+//       return c.json({ error: "Invalid post ID" }, StatusCodes.BAD_REQUEST);
+//     }
 
-    const body = await c.req.json();
-    const parsedPost = updatePostInputSchema.safeParse({ ...body, id });
-    if (!parsedPost.success) {
-      return c.json(
-        {
-          error: "Invalid post input",
-          details: parsedPost.error.errors,
-        },
-        StatusCodes.BAD_REQUEST
-      );
-    }
+//     const body = await c.req.json();
+//     const parsedPost = updatePostInputSchema.safeParse({ ...body, id });
+//     if (!parsedPost.success) {
+//       return c.json(
+//         {
+//           error: "Invalid post input",
+//           details: parsedPost.error.errors,
+//         },
+//         StatusCodes.BAD_REQUEST
+//       );
+//     }
 
-    const { title, description, imageUrl, published, tagIds } = parsedPost.data;
-    const userId = c.get("userId");
+//     const { title, description, imageUrl, published, tagIds } = parsedPost.data;
+//     const userId = c.get("userId");
 
-    // Check if the post exists and belongs to the user
-    const existingPost = await prisma.post.findUnique({
-      where: {
-        id,
-        userId,
-      },
-    });
+//     // Check if the post exists and belongs to the user
+//     const existingPost = await prisma.post.findUnique({
+//       where: {
+//         id,
+//         userId,
+//       },
+//     });
 
-    if (!existingPost) {
-      return c.json(
-        { error: "Post not found or you are not authorized to update it" },
-        StatusCodes.NOT_FOUND
-      );
-    }
+//     if (!existingPost) {
+//       return c.json(
+//         { error: "Post not found or you are not authorized to update it" },
+//         StatusCodes.NOT_FOUND
+//       );
+//     }
 
-    // Calculate read time if description is being updated
-    let readTime = existingPost.readTime;
-    if (description && description !== existingPost.description) {
-      const wordCount = description.split(/\s+/).length;
-      readTime = Math.ceil(wordCount / 200);
-    }
+//     // Calculate read time if description is being updated
+//     let readTime = existingPost.readTime;
+//     if (description && description !== existingPost.description) {
+//       const wordCount = description.split(/\s+/).length;
+//       readTime = Math.ceil(wordCount / 200);
+//     }
 
-    // Determine if we need to update publishedAt
-    const shouldSetPublishedAt = published && !existingPost.published;
+//     // Determine if we need to update publishedAt
+//     const shouldSetPublishedAt = published && !existingPost.published;
 
-    const updatedPost = await prisma.post.update({
-      where: {
-        id,
-        userId,
-      },
-      data: {
-        ...(title && { title }),
-        ...(description && { description, readTime }),
-        ...(imageUrl !== undefined && { imageUrl }),
-        ...(published !== undefined && {
-          published,
-          ...(shouldSetPublishedAt && { publishedAt: new Date() }),
-        }),
-        ...(tagIds && {
-          tags: {
-            deleteMany: {},
-            create: tagIds.map((tagId: number) => ({
-              tagId,
-            })),
-          },
-        }),
-      },
-      include: {
-        author: {
-          select: {
-            id: true,
-            username: true,
-            email: true,
-            displayName: true,
-            avatar: true,
-          },
-        },
-        tags: {
-          include: {
-            tag: {
-              select: {
-                id: true,
-                name: true,
-                description: true,
-              },
-            },
-          },
-        },
-        _count: {
-          select: {
-            claps: true,
-            comments: true,
-            bookmarks: true,
-          },
-        },
-      },
-    });
+//     const updatedPost = await prisma.post.update({
+//       where: {
+//         id,
+//         userId,
+//       },
+//       data: {
+//         ...(title && { title }),
+//         ...(description && { description, readTime }),
+//         ...(imageUrl !== undefined && { imageUrl }),
+//         ...(published !== undefined && {
+//           published,
+//           ...(shouldSetPublishedAt && { publishedAt: new Date() }),
+//         }),
+//         ...(tagIds && {
+//           tags: {
+//             deleteMany: {},
+//             create: tagIds.map((tagId: number) => ({
+//               tagId,
+//             })),
+//           },
+//         }),
+//       },
+//       include: {
+//         author: {
+//           select: {
+//             id: true,
+//             username: true,
+//             email: true,
+//             displayName: true,
+//             avatar: true,
+//           },
+//         },
+//         tags: {
+//           include: {
+//             tag: {
+//               select: {
+//                 id: true,
+//                 name: true,
+//                 description: true,
+//               },
+//             },
+//           },
+//         },
+//         _count: {
+//           select: {
+//             claps: true,
+//             comments: true,
+//             bookmarks: true,
+//           },
+//         },
+//       },
+//     });
 
-    return c.json({ data: updatedPost }, StatusCodes.OK);
-  } catch (error) {
-    console.error("Error updating post by ID:", error);
-    return c.json(
-      { error: "Failed to update post" },
-      StatusCodes.INTERNAL_SERVER_ERROR
-    );
-  }
-}
+//     return c.json({ data: updatedPost }, StatusCodes.OK);
+//   } catch (error) {
+//     console.error("Error updating post by ID:", error);
+//     return c.json(
+//       { error: "Failed to update post" },
+//       StatusCodes.INTERNAL_SERVER_ERROR
+//     );
+//   }
+// }
 
 export async function getPostOwner(c: Context) {
   const prisma = getPrisma(c.env.DATABASE_URL);
